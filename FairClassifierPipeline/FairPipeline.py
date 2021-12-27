@@ -721,8 +721,8 @@ def create_pipeline(config:Dict) -> pipe:
                                                          kw_args={'threshold': config['max_sparse_col_threshold']})),
             ('trim_numeric_str_stabs',FunctionTransformer(numeric_str_feature_encoder,
                                                           kw_args={'numerical_str_features_stubs':config['numerical_str_features_stubs']})),
-            ('convert_numeric_cols_to_ord_cat',FunctionTransformer(convert_numeric_cols_to_ord_cat,
-                                                                   kw_args={'cont_to_cat_cols_settings':config['numeric_to_ord_cat']})),
+            # ('convert_numeric_cols_to_ord_cat',FunctionTransformer(convert_numeric_cols_to_ord_cat,
+            #                                                        kw_args={'cont_to_cat_cols_settings':config['numeric_to_ord_cat']})),
             #sensitive feature imputer is added (just in case) though in most cases it is more reasonable 
             # to remove rows with missing values in this feature before the data imputation stage
             ('imputer_sf',AggregatedSubGroupsImputer(strategy='most_frequent', 
