@@ -113,7 +113,7 @@ class GermanBaseClf(BaseClf):
                 eval_metric='auc', early_stopping_rounds=100, verbose=False)
             ntree_limit = model_.best_ntree_limit
         else:
-            ntree_limit =  XGBClassifier().get_num_boosting_rounds #get default value (weaker but avoid fitting twice)
+            ntree_limit =  XGBClassifier().get_num_boosting_rounds() #get default value (weaker but avoid fitting twice)
 
         # print(model.best_ntree_limit)
         model = XGBClassifier(**XGBClassifier_params)

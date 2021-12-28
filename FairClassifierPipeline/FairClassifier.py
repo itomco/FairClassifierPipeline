@@ -195,16 +195,20 @@ def run_gridsearch_cv(base_clf_class:BaseClf,
     for train_index, test_index in rskf.split(X_train, y_train):
         grid_search_idx[hash(y_train[test_index].values.tobytes())] = np.copy(test_index)
 
-    def f2_measure(y_true, y_pred):
-        return fbeta_score(y_true, y_pred, beta=2, average='macro')
+    def f2_measure(y_true:pd.Series, y_pred:np.ndarray) -> float:
+        return fbeta_score(utils.to_int_srs(y_true),
+                           utils.to_int_srs(pd.Series(y_pred)),
+                           beta=2, average='macro')
 
-    def f1_measure(y_true, y_pred):
-        return f1_score(y_true, y_pred, average='macro')
+    def f1_measure(y_true:pd.Series, y_pred:np.ndarray) -> float:
+        return f1_score(utils.to_int_srs(y_true),
+                        utils.to_int_srs(pd.Series(y_pred)),
+                        average='macro')
 
-    def eod_measure(y_true, y_pred):
+    def eod_measure(y_true:pd.Series, y_pred:np.ndarray) -> float:
         sensitive_selected_arr = sensitive_feature_srs.values[grid_search_idx[hash(y_true.values.tobytes())]]
-        eod_score = abs(equalized_odds_difference(y_true,
-                                                  y_pred,
+        eod_score = abs(equalized_odds_difference(utils.to_int_srs(y_true),
+                                                  utils.to_int_srs(pd.Series(y_pred)),
                                                   sensitive_features=sensitive_selected_arr))
         print(f'EOD Score:{eod_score}')
         return eod_score
@@ -260,7 +264,7 @@ def run_gridsearch_cv(base_clf_class:BaseClf,
     # print('#'*100)
     # print(f'Score:\n{pipe_cv.score(preprocessed_test_data, y_test)}')
     # print('#'*100)
-
+    return pipe_cv
 
 
 class FairXGBClassifier(ClassifierMixin, BaseEstimator):
@@ -425,18 +429,20 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
 
         anomalies_idx = set(anomalies_idx)
         filter_sub_sensitive_group = []
+        sensitive_feature_col = get_feature_col_from_preprocessed_data(feature_name=self.sensitive_col_name,
+                                                                       data=self.data)
         # print(f'indexes before filtering sensitive: {anomalies_idx}')
         if self.remove_side == 'only_privilaged':
             ## filter the rows of the non-privilaged
-            for idx_np in privilage_group:
+            for sf_value in privilage_group:
                 # print(f'indexes of non privilaged: {set(list(self.data.index[self.data[idx_np] == 1]))}')
-                filter_sub_sensitive_group += (list(self.data.index[self.data[idx_np] == 1]))
+                filter_sub_sensitive_group += (list(self.data.index[sensitive_feature_col == sf_value]))
                 # print(f'filter_sub_sensitive_group:{filter_sub_sensitive_group}')
         elif self.remove_side == 'only_non_privilaged':
             ## filter the rows of the privilaged
-            for idx_p in non_privilage_group:
+            for sf_value in non_privilage_group:
                 # print(f'indexes of privilaged: {set(list(self.data.index[self.data[idx_p] == 1]))}')
-                filter_sub_sensitive_group += (list(self.data.index[self.data[idx_p] == 1]))
+                filter_sub_sensitive_group += (list(self.data.index[sensitive_feature_col == sf_value]))
                 # print(f'indexes after filtering sensitive: {anomalies_idx}')
         else:# remove all anomalies
             filter_sub_sensitive_group = anomalies_idx

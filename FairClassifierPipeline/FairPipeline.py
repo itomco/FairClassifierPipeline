@@ -781,14 +781,14 @@ def run_fair_data_preprocess_pipeline(data:pd.DataFrame, config:Dict, stratify_m
     data = data.copy()
     # data['stratify_col'] = [str(lbl)+str(sstv) for lbl, sstv in zip(data[config['label_col']],data[config['sensitive_feature']])]
     if stratify_mode == 'full':
-        data['stratify_col'] = data[config['label_col']].astype(str) + data[config['sensitive_feature']].astype(str)
+        data['bamba_col'] = data[config['label_col']].astype(str) + data[config['sensitive_feature']].astype(str)
         try:
-            train_df, test_df = train_test_split(data, test_size=0.2,random_state=1, stratify=data['stratify_col'])
+            train_df, test_df = train_test_split(data, test_size=0.2,random_state=1, stratify=data['bamba_col'])
         except BaseException as e:
             train_df, test_df = train_test_split(data, test_size=0.2,random_state=1, stratify=data[config['label_col']])
 
-        train_df.drop(columns=['stratify_col'])
-        test_df.drop(columns=['stratify_col'])
+        train_df.drop(columns=['bamba_col'],inplace=True)
+        test_df.drop(columns=['bamba_col'],inplace=True)
     elif stratify_mode == 'sensitive_feature':
         try:
             train_df, test_df = train_test_split(data, test_size=0.2,random_state=1, stratify=data['sensitive_feature'])
@@ -811,7 +811,8 @@ def run_fair_data_preprocess_pipeline(data:pd.DataFrame, config:Dict, stratify_m
     # https://stackoverflow.com/questions/61346021/create-a-mixed-type-pandas-dataframe-using-an-numpy-array-of-type-object
     preprocessed_train_data = preprocessed_train_data.convert_dtypes()
 
-    X_train, y_train = preprocessed_train_data.drop(columns=[config['label_col']], axis=1), preprocessed_train_data[config['label_col']]
+    X_train = preprocessed_train_data.drop(columns=[config['label_col']], axis=1)
+    y_train = preprocessed_train_data[config['label_col']]
     # print(preprocessed_train_data.head(3))
 
     ####Run the Data PreProcessing Pipeline on Test Dataset
@@ -819,7 +820,8 @@ def run_fair_data_preprocess_pipeline(data:pd.DataFrame, config:Dict, stratify_m
     preprocessed_test_data = ppl.transform(test_df)
     preprocessed_test_data = pd.DataFrame(data=preprocessed_test_data, columns=final_columns)
     preprocessed_test_data = preprocessed_test_data.convert_dtypes()
-    X_test, y_test = preprocessed_test_data.drop(columns=[config['label_col']], axis=1), preprocessed_test_data[config['label_col']]
+    X_test = preprocessed_test_data.drop(columns=[config['label_col']], axis=1)
+    y_test = preprocessed_test_data[config['label_col']]
 
     # print(preprocessed_test_data.head(3))
 
