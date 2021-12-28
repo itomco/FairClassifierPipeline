@@ -452,9 +452,8 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
             print(f'  Number of anomalies to be removed:{len(anomalies_idx_to_remove)}')
 
         # https: // xgboost.readthedocs.io / en / stable / python / python_api.html
-        self.model, self.ntree_limit = self.base_clf_class.fit(X_train=self.data.drop(list(anomalies_idx_to_remove)),
-                                                                y_train=np.delete(self.y_, list(anomalies_idx_to_remove)),
-                                                                ntree_limit=0)
+        self.model = self.base_clf_class.fit(X_train=self.data.drop(list(anomalies_idx_to_remove)),
+                                                                y_train=np.delete(self.y_, list(anomalies_idx_to_remove)))
 
 
         # self.model = self.XGBClassifier.fit(X=self.data.drop(list(anomalies_idx_to_remove)),
@@ -478,15 +477,13 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
             seen during fit.
         """
         y_pred, y_pred_proba = self.base_clf_class.predict(clf= self.model,
-                                                            X = X,
-                                                            ntree_limit=self.ntree_limit)
+                                                            X = X)
 
         return y_pred
 
     def predict_proba(self, X):
         y_predict, y_pred_proba = self.base_clf_class.predict(clf= self.model,
-                                                                X = X,
-                                                                ntree_limit=self.ntree_limit)
+                                                                X = X)
         return y_pred_proba
 
     def decision_function(self, X):

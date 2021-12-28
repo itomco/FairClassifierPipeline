@@ -78,12 +78,11 @@ from FairClassifierPipeline import Utils as utils
 class GermanBaseClf(BaseClf):
     @staticmethod
     def predict(clf:XGBClassifier,
-                X:pd.DataFrame,
-                ntree_limit:int
+                X:pd.DataFrame
                 ):
 
-        y_pred = clf.predict(X, ntree_limit=ntree_limit)  # model.best_iteration
-        y_pred_proba = clf.predict_proba(X, ntree_limit=ntree_limit)[:, 1]  # model.best_iteration
+        y_pred = clf.predict(X)  # model.best_iteration
+        y_pred_proba = clf.predict_proba(X)[:, 1]  # model.best_iteration
 
         return (y_pred, y_pred_proba)
 
@@ -91,8 +90,7 @@ class GermanBaseClf(BaseClf):
     def fit(X_train: pd.DataFrame,
             y_train: pd.Series,
             X_test:pd.DataFrame = None,
-            y_test:pd.Series = None,
-            ntree_limit: int = -1
+            y_test:pd.Series = None
             ):
 
         XGBClassifier_params = {
@@ -108,17 +106,14 @@ class GermanBaseClf(BaseClf):
             'n_jobs': -1,
             'use_label_encoder': False
         }
-        if ntree_limit == -1:
-            model_ = XGBClassifier(**XGBClassifier_params)
-            if X_test is not None and y_test is not None:
-                eval_set = [(X_train, y_train), (X_test, y_test)]
-                model_.fit(X=X_train, y=y_train,eval_set=eval_set,
-                    eval_metric='auc', early_stopping_rounds=100, verbose=False)
-            else:
-                model_.fit(X=X_train, y=y_train,
-                           eval_metric='logloss', verbose=False)
-
+        model_ = XGBClassifier(**XGBClassifier_params)
+        if X_test is not None and y_test is not None:
+            eval_set = [(X_train, y_train), (X_test, y_test)]
+            model_.fit(X=X_train, y=y_train,eval_set=eval_set,
+                eval_metric='auc', early_stopping_rounds=100, verbose=False)
             ntree_limit = model_.best_ntree_limit
+        else:
+            ntree_limit =  XGBClassifier().get_num_boosting_rounds #get default value (weaker but avoid fitting twice)
 
         # print(model.best_ntree_limit)
         model = XGBClassifier(**XGBClassifier_params)
@@ -126,23 +121,21 @@ class GermanBaseClf(BaseClf):
         model.set_params(**{'n_estimators': ntree_limit})
         model.fit(X=X_train, y=y_train, eval_metric='logloss', verbose=False)
 
-        return (model, ntree_limit)
+        return (model)
 
     @staticmethod
     def fit_predict(X_train:pd.DataFrame,
                     y_train:pd.Series,
                     X_test:pd.DataFrame,#X_test is needed for the predict thus MUST NOT BE None !!!
-                    y_test: pd.Series = None,
-                    ntree_limit:int=-1
+                    y_test: pd.Series = None
                     ):
 
-        model, ntree_limit = GermanBaseClf.fit(X_train=X_train,
+        model = GermanBaseClf.fit(X_train=X_train,
                                     y_train=y_train,
                                     X_test=X_test,
-                                    y_test=y_test,
-                                    ntree_limit=ntree_limit)
+                                    y_test=y_test)
 
-        return (model, ntree_limit, *GermanBaseClf.predict(clf=model, X=X_test,ntree_limit=ntree_limit))
+        return (model, *GermanBaseClf.predict(clf=model, X=X_test))
 
 # Function to get roc curve
 def get_roc (y_test,y_pred):

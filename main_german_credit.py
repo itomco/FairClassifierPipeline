@@ -80,11 +80,11 @@ from BaseClassifiers import GermanCreditBaseClf as base_clf
 from BaseClassifiers.GermanCreditBaseClf import GermanBaseClf as base_clf_class
 from FairClassifierPipeline import FairClassifier as fair_clf
 
-print(xgboost.__version__)
+# print(xgboost.__version__)
 
 def create_config() -> Dict:
     config = {}
-    config['sensitive_features'] = ['statussex','age','job']
+    config['sensitive_features'] = ['statussex']
     config['label_col'] = 'classification'
     config['label_ordered_classes'] = ([1,2], [1,0]) #relevant for Fairness Positive Label Value
 
@@ -135,7 +135,7 @@ if __name__ == '__main__':
     # print(data.head())
 
     ####-2. Execute Baseline XGBoost Classifier
-    base_X_test, base_y_test, base_model, ntree_limit, base_y_pred, base_y_pred_proba = base_clf.run_baseline_clf(data.copy())
+    base_X_test, base_y_test, base_model, base_y_pred, base_y_pred_proba = base_clf.run_baseline_clf(data.copy())
     base_fpr, base_tpr, base_auc = base_clf.get_roc(y_test=base_y_test,
                                                     y_pred=base_y_pred)
 
@@ -183,7 +183,7 @@ if __name__ == '__main__':
 
         #### Execute Baseline XGBoost Classifier over fairly preprocessed data
         initial_y_test = utils.to_int_srs(initial_y_test)
-        initial_model, ntree_limit, initial_y_pred, initial_y_pred_proba = base_clf_class.fit_predict(X_train= utils.to_float_df(initial_X_train),
+        initial_model, initial_y_pred, initial_y_pred_proba = base_clf_class.fit_predict(X_train= utils.to_float_df(initial_X_train),
                                                                                                       y_train= utils.to_int_srs(initial_y_train),
                                                                                                       X_test= utils.to_float_df(initial_X_test),
                                                                                                       y_test= initial_y_test)
@@ -231,7 +231,7 @@ if __name__ == '__main__':
 
         y_test = utils.to_int_srs(y_test)
         X_test = utils.to_float_df(X_test)
-        xgb_clf, ntree_limit, y_pred, y_pred_proba = base_clf_class.fit_predict(X_train=utils.to_float_df(X_train),
+        xgb_clf, y_pred, y_pred_proba = base_clf_class.fit_predict(X_train=utils.to_float_df(X_train),
                                                                                 y_train=utils.to_int_srs(y_train),
                                                                                 X_test=X_test,
                                                                                 y_test=y_test)
@@ -259,14 +259,13 @@ if __name__ == '__main__':
 
     X_train = utils.to_float_df(X_train)
     y_train = utils.to_int_srs(y_train)
-    xgb_clf, ntree_limit = base_clf_class.fit(X_train=X_train,
+    xgb_clf = base_clf_class.fit(X_train=X_train,
                                                 y_train=y_train,
                                                 X_test=utils.to_float_df(X_test),
                                                 y_test=utils.to_int_srs(y_test))
 
     y_pred, y_pred_proba = base_clf_class.predict(clf=xgb_clf,
-                                                  X=X_train,
-                                                  ntree_limit=ntree_limit)
+                                                  X=X_train)
 
     sensitive_feature_srs = fair_clf.get_feature_col_from_preprocessed_data(feature_name=sensitive_feature,
                                                                             data= X_train)
