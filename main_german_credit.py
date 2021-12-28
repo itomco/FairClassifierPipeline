@@ -73,16 +73,18 @@ from fairlearn.metrics import (
 )
 import itertools
 
-from FairClassifierPipeline import FairPipeline as fp
+from FairClassifierPipeline import FairPipeline as fair_ppl
 from FairClassifierPipeline import Utils as utils
+from BaseClassifiers import BaseClf
 from BaseClassifiers import GermanCreditBaseClf as base_clf
+from BaseClassifiers.GermanCreditBaseClf import GermanBaseClf as base_clf_class
 from FairClassifierPipeline import FairClassifier as fair_clf
 
 print(xgboost.__version__)
 
 def create_config() -> Dict:
     config = {}
-    config['sensitive_features'] = ['age','statussex']
+    config['sensitive_features'] = ['statussex','age','job']
     config['label_col'] = 'classification'
     config['label_ordered_classes'] = ([1,2], [1,0]) #relevant for Fairness Positive Label Value
 
@@ -119,171 +121,167 @@ def create_config() -> Dict:
 
     return config
 
-def run_baseline_clf_on_preprocessed_data(X_baseline_train_clean, X_baseline_test_clean, y_baseline_train_clean, y_baseline_test_clean):
-
-    params2 = {
-        'n_estimators': 3000,
-        'objective': 'binary:logistic',
-        'learning_rate': 0.005,
-        # 'gamma':0.01,
-        'subsample': 0.555,
-        'colsample_bytree': 0.7,
-        'min_child_weight': 3,
-        'max_depth': 8,
-        'use_label_encoder' : False,
-        # 'seed':1024,
-        'n_jobs': -1
-    }
-
-    return base_clf.xgbclf(params2, X_baseline_train_clean, y_baseline_train_clean, X_baseline_test_clean, y_baseline_test_clean)
-
-def run_baseline_clf(data:pd.DataFrame):
-    data_baseline = data.copy()
-    # Binarize the y output for easier use of e.g. ROC curves -> 0 = 'bad' credit; 1 = 'good' credit
-    data_baseline.classification.replace([1, 2], [1, 0], inplace=True)
-    # Print number of 'good' credits (should be 700) and 'bad credits (should be 300)
-    data_baseline.classification.value_counts()
-
-    # numerical variables labels
-    numvars = ['creditamount', 'duration', 'installmentrate', 'residencesince', 'age',
-               'existingcredits', 'peopleliable', 'classification']
-
-    # Standardization
-    numdata_std = pd.DataFrame(StandardScaler().fit_transform(data_baseline[numvars].drop(['classification'], axis=1)))
-
-    # categorical variables labels
-    catvars = ['existingchecking', 'credithistory', 'purpose', 'savings', 'employmentsince',
-               'statussex', 'otherdebtors', 'property', 'otherinstallmentplans', 'housing', 'job',
-               'telephone', 'foreignworker']
-
-    d = defaultdict(LabelEncoder)
-
-    # Encoding the variable
-    lecatdata = data_baseline[catvars].apply(lambda x: d[x.name].fit_transform(x))
-
-    # print transformations
-    for x in range(len(catvars)):
-        print(catvars[x], ": ", data_baseline[catvars[x]].unique())
-        print(catvars[x], ": ", lecatdata[catvars[x]].unique())
-
-    # One hot encoding, create dummy variables for every category of every categorical variable
-    dummyvars = pd.get_dummies(data_baseline[catvars])
-
-    data_baseline_clean = pd.concat([data_baseline[numvars], dummyvars], axis=1)
-
-    print(data_baseline_clean.shape)
-
-    # Unscaled, unnormalized data
-    X_baseline_clean = data_baseline_clean.drop('classification', axis=1)
-    y_baseline_clean = data_baseline_clean['classification']
-
-    X_baseline_train_clean, X_baseline_test_clean, y_baseline_train_clean, y_baseline_test_clean = train_test_split(
-        X_baseline_clean, y_baseline_clean, test_size=0.2, random_state=1)
-
-    return (X_baseline_test_clean,*run_baseline_clf_on_preprocessed_data(X_baseline_train_clean, X_baseline_test_clean, y_baseline_train_clean, y_baseline_test_clean))
-
-
-def run_fair_data_preprocess_pipeline(data:pd.DataFrame, config:Dict):
-    # categorical_numerical_preprocessor.fit_transform(X_train, y_train)
-    preprocessed_train_data = ppl.fit_transform(train_df)
-    final_columns = fp.get_pipeline_final_columns(ppl)
-
-    preprocessed_train_data = pd.DataFrame(data=preprocessed_train_data, columns=final_columns)
-
-    # https://datatofish.com/numpy-array-to-pandas-dataframe/ - following this tutorial, a numpy array containing multiple types of columns values results with all object array.
-    # https://stackoverflow.com/questions/61346021/create-a-mixed-type-pandas-dataframe-using-an-numpy-array-of-type-object
-    preprocessed_train_data = preprocessed_train_data.convert_dtypes()
-
-    X_train, y_train = preprocessed_train_data.drop(columns=[config['label_col']], axis=1), preprocessed_train_data[config['label_col']]
-    print(preprocessed_train_data.head(3))
-
-    ####Run the Data PreProcessing Pipeline on Test Dataset
-
-    preprocessed_test_data = ppl.transform(test_df)
-    preprocessed_test_data = pd.DataFrame(data=preprocessed_test_data, columns=final_columns)
-    preprocessed_test_data = preprocessed_test_data.convert_dtypes()
-    X_test, y_test = preprocessed_test_data.drop(columns=[config['label_col']], axis=1), preprocessed_test_data[
-        config['label_col']]
-
-    print(preprocessed_test_data.head(3))
-
-    return(ppl, preprocessed_train_data, preprocessed_test_data, X_train, X_test, y_train, y_test)
-
-if __name__ == '__main__':
-    #### Load data
+def load_data():
     names = ['existingchecking', 'duration', 'credithistory', 'purpose', 'creditamount',
              'savings', 'employmentsince', 'installmentrate', 'statussex', 'otherdebtors',
              'residencesince', 'property', 'age', 'otherinstallmentplans', 'housing',
              'existingcredits', 'job', 'peopleliable', 'telephone', 'foreignworker', 'classification']
 
-    data = pd.read_csv('./Data/german.data', names=names, delimiter=' ')
-    print(data.head())
+    return pd.read_csv('./Data/german.data', names=names, delimiter=' ')
 
-    #### Execute Baseline XGBoost Classifier
-    base_X_test, base_model, base_y_test, base_y_pred, base_y_pred_proba, base_fpr, base_tpr, base_auc = run_baseline_clf(data.copy())
+if __name__ == '__main__':
+    ####-1. Load data
+    data = load_data()
+    # print(data.head())
+
+    ####-2. Execute Baseline XGBoost Classifier
+    base_X_test, base_y_test, base_model, ntree_limit, base_y_pred, base_y_pred_proba = base_clf.run_baseline_clf(data.copy())
+    base_fpr, base_tpr, base_auc = base_clf.get_roc(y_test=base_y_test,
+                                                    y_pred=base_y_pred)
+
     print(f"Base model AUC: {base_auc}")
     utils.print_confusion_matrix(base_y_test,base_y_pred, base_y_pred_proba)
 
-    #### Execute Fair Pipeline
-    train_df, test_df = train_test_split(data, test_size=0.2)
+    ####-3. Check fair pipeline impact on base model
 
     ####Run the Data PreProcessing Pipeline on Train Dataset
     config = create_config()
     sensitive_features_names = config['sensitive_features']
     snsftr_eods_w_base_preprocess = {}
     snsftr_eods_w_fair_pipeline = {}
+    snsftr_f1_w_base_preprocess = {}
+    snsftr_f1_w_fair_pipeline = {}
+
     for sf in sensitive_features_names:
-        if sf in base_X_test.columns and fp.is_categorial(base_X_test[sf]) == False:
+        if sf in base_X_test.columns and fair_ppl.is_categorial(base_X_test[sf]) == False:
             continue
 
         config = create_config()
         config['sensitive_feature'] = sf
-        ppl = fp.create_pipeline(config)
-        # print(ppl)
 
-        ppl, preprocessed_train_data, preprocessed_test_data, X_train, X_test, y_train, y_test = run_fair_data_preprocess_pipeline(data.copy(), config)
+        #base model
+        snsftr_eods_w_base_preprocess.update(fair_clf.get_eod_for_sensitive_features(sensitive_features_names= [sf],
+                                                                                y_true=base_y_test,
+                                                                                y_pred=pd.Series(base_y_pred),
+                                                                                data=base_X_test))
+
+        clsf_rprt = classification_report(base_y_test, pd.Series(base_y_pred), digits=4, output_dict=True)
+        snsftr_f1_w_base_preprocess.update({'accuracy':clsf_rprt['accuracy'],
+                                            'precision':clsf_rprt['macro avg']['precision'],
+                                            'recall':clsf_rprt['macro avg']['recall'],
+                                            'f1-score':clsf_rprt['macro avg']['f1-score']})
+
+
+
+        #initial
+        ppl, preprocessed_train_data, preprocessed_test_data, initial_X_train, initial_X_test, initial_y_train, initial_y_test = \
+                                                                                        fair_ppl.run_fair_data_preprocess_pipeline(data.copy(), config)
 
         #### Pipeline Stracture Graph plot
         #set_config(display='diagram')
         # ppl
 
         #### Execute Baseline XGBoost Classifier over fairly preprocessed data
-        initial_model, initial_y_test, initial_y_pred, initial_y_pred_proba, initial_fpr, initial_tpr, initial_auc = \
-            run_baseline_clf_on_preprocessed_data(X_train.astype(float), X_test.astype(float), pd.Series(np.array(y_train.values,dtype=int)), pd.Series(np.array(y_test.values,dtype=int)))
+        initial_y_test = utils.to_int_srs(initial_y_test)
+        initial_model, ntree_limit, initial_y_pred, initial_y_pred_proba = base_clf_class.fit_predict(X_train= utils.to_float_df(initial_X_train),
+                                                                                                      y_train= utils.to_int_srs(initial_y_train),
+                                                                                                      X_test= utils.to_float_df(initial_X_test),
+                                                                                                      y_test= initial_y_test)
+
+        initial_fpr, initial_tpr, initial_auc = base_clf.get_roc(y_test= initial_y_test,
+                                                                 y_pred= initial_y_pred)
 
         print(f"Initial model AUC: {initial_auc}")
-        utils.print_confusion_matrix(initial_y_test,initial_y_pred, initial_y_pred_proba)
-
-        #compare base vs initial results
-        snsftr_eods_w_base_preprocess.update(fair_clf.get_eod_for_sensitive_features(sensitive_features_names= [sf],
-                                                                                y_true=base_y_test,
-                                                                                y_pred=pd.Series(base_y_pred),
-                                                                                X_pd=base_X_test))
-
+        utils.print_confusion_matrix(utils.to_int_srs(initial_y_test),initial_y_pred, initial_y_pred_proba)
 
         snsftr_eods_w_fair_pipeline.update(fair_clf.get_eod_for_sensitive_features(sensitive_features_names = [sf],
                                                                               y_true=initial_y_test,
                                                                               y_pred=pd.Series(initial_y_pred),
-                                                                              X_pd=X_test))
+                                                                              data=initial_X_test))
 
-    base_vs_initial_eod_results = pd.DataFrame([snsftr_eods_w_base_preprocess,snsftr_eods_w_fair_pipeline]).T
+        clsf_rprt = classification_report(initial_y_test, pd.Series(initial_y_pred), digits=4, output_dict=True)
+        snsftr_f1_w_fair_pipeline.update({'accuracy':clsf_rprt['accuracy'],
+                                          'precision':clsf_rprt['macro avg']['precision'],
+                                          'recall':clsf_rprt['macro avg']['recall'],
+                                          'f1-score':clsf_rprt['macro avg']['f1-score']})
+
+
+    base_vs_initial_eod_results = pd.DataFrame([snsftr_eods_w_base_preprocess,
+                                                snsftr_eods_w_fair_pipeline]).T
+
+    base_vs_initial_macro_avg_cf_resuls = pd.DataFrame([snsftr_f1_w_base_preprocess,
+                                                       snsftr_f1_w_fair_pipeline]).T
+
     base_vs_initial_eod_results.columns = ['base','initial']
-    print(base_vs_initial_eod_results)
+    base_vs_initial_macro_avg_cf_resuls.columns = ['base','initial']
+    print(pd.concat([base_vs_initial_eod_results,base_vs_initial_macro_avg_cf_resuls],axis=0))
 
-    # if sensitive_feature_name not in X_train.columns:
-    #     sensitive_feature_srs = fair_clf.merge_feature_onehot_columns(X_train_df=X_train, feature_name=sensitive_feature_name)
-    # else:
-    #     sensitive_feature_srs = X_train[sensitive_feature_name]
-    #
-    # snsftr_groups_slctnrt_and_acc, snsftr_slctrt_sub_groups = fair_clf.get_feature_sub_groups_by_selection_rate( clf_model = initial_model,
-    #                                                                                                              X_train_df = X_train,
-    #                                                                                                              y_train = y_train,
-    #                                                                                                              sensitive_feature_srs = sensitive_feature_srs)
-    #
-    #
-    # gridsearch_cv = fair_clf.build_gridsearch_cv( X_train_df = X_train,
-    #                                              y_train = y_train,
-    #                                              sensitive_feature_name = sensitive_feature_name,
-    #                                              sensitive_feature_srs = sensitive_feature_srs,
-    #                                              snsftr_slctrt_sub_groups = snsftr_slctrt_sub_groups)
-    #
+    ####-4. search for most fairness biased sensitive feature
+    sensitive_features_eod_scores_dict = {}
+    for sf in sensitive_features_names:
+        config = create_config()
+        config['sensitive_feature'] = sf
+
+        ppl, preprocessed_train_data, preprocessed_test_data, X_train, X_test, y_train, y_test = fair_ppl.run_fair_data_preprocess_pipeline(data.copy(), config)
+
+        if sf in X_train.columns and fair_ppl.is_categorial(X_train[sf]) == False:
+            print(f'sensitive feature {sf} is not categorical thus removed from sensitive features list')
+            sensitive_features_names.remove(sf)
+            continue
+
+        y_test = utils.to_int_srs(y_test)
+        X_test = utils.to_float_df(X_test)
+        xgb_clf, ntree_limit, y_pred, y_pred_proba = base_clf_class.fit_predict(X_train=utils.to_float_df(X_train),
+                                                                                y_train=utils.to_int_srs(y_train),
+                                                                                X_test=X_test,
+                                                                                y_test=y_test)
+
+
+        sensitive_features_eod_scores_dict.update(fair_clf.get_eod_for_sensitive_features(sensitive_features_names=[sf],
+                                                                                     y_true=y_test,
+                                                                                     y_pred=pd.Series(y_pred),
+                                                                                     data=X_test))
+
+    sensitive_features_eod_scores_df = pd.DataFrame.from_dict(sensitive_features_eod_scores_dict, orient='index', columns=['eod'])
+    sensitive_features_eod_scores_df = sensitive_features_eod_scores_df.sort_values(ascending=False, by=['eod'])
+    print(sensitive_features_eod_scores_df)
+
+    sensitive_feature = sensitive_features_eod_scores_df.index[0].split('_')[1]
+
+
+
+    ####-5. find privileged and unprivileged groups in sensitive feature
+    config = create_config()
+    config['sensitive_feature'] = sensitive_feature
+
+    ppl, preprocessed_train_data, preprocessed_test_data, X_train, X_test, y_train, y_test = \
+                                                            fair_ppl.run_fair_data_preprocess_pipeline(data.copy(), config, stratify_mode='full')
+
+    X_train = utils.to_float_df(X_train)
+    y_train = utils.to_int_srs(y_train)
+    xgb_clf, ntree_limit = base_clf_class.fit(X_train=X_train,
+                                                y_train=y_train,
+                                                X_test=utils.to_float_df(X_test),
+                                                y_test=utils.to_int_srs(y_test))
+
+    y_pred, y_pred_proba = base_clf_class.predict(clf=xgb_clf,
+                                                  X=X_train,
+                                                  ntree_limit=ntree_limit)
+
+    sensitive_feature_srs = fair_clf.get_feature_col_from_preprocessed_data(feature_name=sensitive_feature,
+                                                                            data= X_train)
+    snsftr_groups_slctnrt_and_acc, snsftr_slctrt_sub_groups = \
+        fair_clf.get_feature_sub_groups_by_selection_rate(   y_true= y_train,
+                                                             y_pred= utils.to_int_srs(pd.Series(y_pred)),
+                                                             sensitive_feature_srs = sensitive_feature_srs)
+
+
+
+    ####-6. run gridsearch_cv with anomaly samples removal
+    gridsearch_cv = fair_clf.run_gridsearch_cv(base_clf_class=base_clf_class,
+                                               X_train = X_train,
+                                               y_train = y_train,
+                                               sensitive_feature_name = sensitive_feature,
+                                               sensitive_feature_srs = sensitive_feature_srs,
+                                               snsftr_slctrt_sub_groups = snsftr_slctrt_sub_groups)
+

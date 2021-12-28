@@ -72,6 +72,78 @@ from fairlearn.metrics import (
 )
 import itertools
 
+from BaseClassifiers.BaseClf import BaseClf
+from FairClassifierPipeline import Utils as utils
+
+class GermanBaseClf(BaseClf):
+    @staticmethod
+    def predict(clf:XGBClassifier,
+                X:pd.DataFrame,
+                ntree_limit:int
+                ):
+
+        y_pred = clf.predict(X, ntree_limit=ntree_limit)  # model.best_iteration
+        y_pred_proba = clf.predict_proba(X, ntree_limit=ntree_limit)[:, 1]  # model.best_iteration
+
+        return (y_pred, y_pred_proba)
+
+    @staticmethod
+    def fit(X_train: pd.DataFrame,
+            y_train: pd.Series,
+            X_test:pd.DataFrame = None,
+            y_test:pd.Series = None,
+            ntree_limit: int = -1
+            ):
+
+        XGBClassifier_params = {
+            'n_estimators': 3000,
+            'objective': 'binary:logistic',
+            'learning_rate': 0.005,
+            # 'gamma':0.0,
+            'subsample': 0.555,
+            'colsample_bytree': 0.70,
+            'min_child_weight': 3,
+            'max_depth': 8,
+            # 'seed':1024,
+            'n_jobs': -1,
+            'use_label_encoder': False
+        }
+        if ntree_limit == -1:
+            model_ = XGBClassifier(**XGBClassifier_params)
+            if X_test is not None and y_test is not None:
+                eval_set = [(X_train, y_train), (X_test, y_test)]
+                model_.fit(X=X_train, y=y_train,eval_set=eval_set,
+                    eval_metric='auc', early_stopping_rounds=100, verbose=False)
+            else:
+                model_.fit(X=X_train, y=y_train,
+                           eval_metric='logloss', verbose=False)
+
+            ntree_limit = model_.best_ntree_limit
+
+        # print(model.best_ntree_limit)
+        model = XGBClassifier(**XGBClassifier_params)
+        # print(f"model_.best_ntree_limit:{model_.best_ntree_limit}")
+        model.set_params(**{'n_estimators': ntree_limit})
+        model.fit(X=X_train, y=y_train, eval_metric='logloss', verbose=False)
+
+        return (model, ntree_limit)
+
+    @staticmethod
+    def fit_predict(X_train:pd.DataFrame,
+                    y_train:pd.Series,
+                    X_test:pd.DataFrame,#X_test is needed for the predict thus MUST NOT BE None !!!
+                    y_test: pd.Series = None,
+                    ntree_limit:int=-1
+                    ):
+
+        model, ntree_limit = GermanBaseClf.fit(X_train=X_train,
+                                    y_train=y_train,
+                                    X_test=X_test,
+                                    y_test=y_test,
+                                    ntree_limit=ntree_limit)
+
+        return (model, ntree_limit, *GermanBaseClf.predict(clf=model, X=X_test,ntree_limit=ntree_limit))
+
 # Function to get roc curve
 def get_roc (y_test,y_pred):
     '''fpr, tpr, roc_auc'''
@@ -96,40 +168,53 @@ def get_roc (y_test,y_pred):
     # plt.show()
     return(fpr, tpr, roc_auc)
 
-# fit, train and cross validate Decision Tree with training and test data
-def xgbclf(params, X_train, y_train, X_test, y_test):
-    '''return model,y_test, y_pred, y_pred_proba, fpr,tpr,auc'''
-    eval_set = [(X_train, y_train), (X_test, y_test)]
+def run_baseline_clf(data:pd.DataFrame):
+    data_baseline = data.copy()
+    # Binarize the y output for easier use of e.g. ROC curves -> 0 = 'bad' credit; 1 = 'good' credit
+    data_baseline.classification.replace([1, 2], [1, 0], inplace=True)
+    # Print number of 'good' credits (should be 700) and 'bad credits (should be 300)
+    # data_baseline.classification.value_counts()
 
-    model_ = XGBClassifier(**params)
-    model_.fit(X_train, y_train, eval_set=eval_set,
-            eval_metric='auc', early_stopping_rounds=100, verbose=100)
+    # numerical variables labels
+    numvars = ['creditamount', 'duration', 'installmentrate', 'residencesince', 'age',
+               'existingcredits', 'peopleliable', 'classification']
 
-    # print(model.best_ntree_limit)
-    model = XGBClassifier(**params)
-    model.set_params(**{'n_estimators': model_.best_ntree_limit})
-    model.fit(X_train, y_train)
-    # print(model,'\n')
+    # Standardization
+    # numdata_std = pd.DataFrame(StandardScaler().fit_transform(data_baseline[numvars].drop(['classification'], axis=1)))
 
-    # Predict target variables y for test data
-    y_pred = model.predict(X_test, ntree_limit=model.best_ntree_limit)  # model.best_iteration
-    # print(y_pred)
+    # categorical variables labels
+    catvars = ['existingchecking', 'credithistory', 'purpose', 'savings', 'employmentsince',
+               'statussex', 'otherdebtors', 'property', 'otherinstallmentplans', 'housing', 'job',
+               'telephone', 'foreignworker']
 
-    # Get Cross Validation and Confusion matrix
-    # get_eval(model, X_train, y_train)
-    # get_eval2(model, X_train, y_train,X_test, y_test)
+    # d = defaultdict(LabelEncoder)
 
-    # Create and print confusion matrix
-    abclf_cm = confusion_matrix(y_test, y_pred)
-    print(abclf_cm)
+    # Encoding the variable
+    # lecatdata = data_baseline[catvars].apply(lambda x: d[x.name].fit_transform(x))
 
-    # y_pred = model.predict(X_test)
-    print(classification_report(y_test, y_pred))
-    print('\n')
-    print("Model Final Generalization Accuracy: %.6f" % accuracy_score(y_test, y_pred))
+    # print transformations
+    # for x in range(len(catvars)):
+    #     print(catvars[x], ": ", data_baseline[catvars[x]].unique())
+    #     print(catvars[x], ": ", lecatdata[catvars[x]].unique())
 
-    # Predict probabilities target variables y for test data
-    y_pred_proba = model.predict_proba(X_test, ntree_limit=model.best_ntree_limit)[:, 1]  # model.best_iteration
+    # One hot encoding, create dummy variables for every category of every categorical variable
+    dummyvars = pd.get_dummies(data_baseline[catvars])
 
-    return (model, y_test, y_pred, y_pred_proba, *get_roc(y_test, y_pred_proba)) #return model,fpr,tpr,auc
+    data_baseline_clean = pd.concat([data_baseline[numvars], dummyvars], axis=1)
+
+    # print(data_baseline_clean.shape)
+
+    # Unscaled, unnormalized data
+    X_baseline_clean = data_baseline_clean.drop('classification', axis=1)
+    y_baseline_clean = data_baseline_clean['classification']
+
+    X_baseline_train_clean, X_baseline_test_clean, y_baseline_train_clean, y_baseline_test_clean = train_test_split(
+        X_baseline_clean, y_baseline_clean, test_size=0.2, random_state=1)
+
+
+    return (X_baseline_test_clean,y_baseline_test_clean,
+            *GermanBaseClf.fit_predict(X_train=utils.to_float_df(X_baseline_train_clean),
+                                       y_train=utils.to_int_srs(y_baseline_train_clean),
+                                       X_test=utils.to_float_df(X_baseline_test_clean),
+                                       y_test= utils.to_int_srs(y_baseline_test_clean)))
 

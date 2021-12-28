@@ -7,14 +7,15 @@ import pandas as pd
 import numpy as np
 import sklearn
 from typing import *
+import datetime
 from collections import OrderedDict
 
 #
 # %matplotlib inline
-# import matplotlib.pyplot as plt
-# import seaborn as sns
-# sns.set_context('notebook')
-# sns.set_style(style='darkgrid')
+import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set_context('notebook')
+sns.set_style(style='darkgrid')
 
 #tomer added
 from scipy import stats
@@ -52,6 +53,9 @@ import rrcf
 
 #classifier
 from xgboost import XGBClassifier
+import FairClassifierPipeline.RobustRandomCutForest as RRCF
+import FairClassifierPipeline.Utils as utils
+from BaseClassifiers import BaseClf
 
 
 from pprint import pprint
@@ -71,14 +75,14 @@ from fairlearn.metrics import (
 )
 import itertools
 
-def merge_feature_onehot_columns(X_train_df:pd.DataFrame, feature_name:str) -> pd.Series:
+def merge_feature_onehot_columns(feature_name:str, data:pd.DataFrame) -> pd.Series:
     # sensitive_feature_name = config['sensitive_feature']
 
-    sensitive_feature_one_hot_columns = [col for col in X_train_df.columns if feature_name in col]
+    sensitive_feature_one_hot_columns = [col for col in data.columns if feature_name in col]
 
-    feature_df = pd.DataFrame(data=[''] * X_train_df.shape[0], columns=[feature_name])
+    feature_df = pd.DataFrame(data=[''] * data.shape[0], columns=[feature_name])
     for col in sensitive_feature_one_hot_columns:
-        feature_df.loc[(X_train_df[col].values == 1)] = col
+        feature_df.loc[(data[col].values == 1)] = col
 
     # sensitive_test_feature = pd.DataFrame(data=['']*preprocessed_test_data.shape[0], columns=[sensitive_feature_name])
     # for col in sensitive_feature_one_hot_columns:
@@ -86,44 +90,56 @@ def merge_feature_onehot_columns(X_train_df:pd.DataFrame, feature_name:str) -> p
 
     return feature_df[feature_name]
 
+def get_feature_col_from_preprocessed_data(feature_name:str, data:pd.DataFrame) -> pd.Series:
+    sensitive_feature_srs = None
+    if feature_name not in data.columns:
+        sensitive_feature_srs = merge_feature_onehot_columns(feature_name=feature_name, data=data)
+    else:
+        sensitive_feature_srs = data[feature_name]
+
+    return sensitive_feature_srs
+
+
 def get_eod_for_sensitive_features(sensitive_features_names:List[str],
                                    y_true:pd.Series,
                                    y_pred:pd.Series,
-                                   X_pd:pd.DataFrame):
+                                   data:pd.DataFrame):
     snsftr_eod_dict = {}
     for ftr in sensitive_features_names:
         sensitive_feature_srs = None
-        if ftr not in X_pd.columns:
-            sensitive_feature_srs = merge_feature_onehot_columns(X_train_df=X_pd,feature_name=ftr)
-        else:
-            sensitive_feature_srs = X_pd[ftr]
+        sensitive_feature_srs = get_feature_col_from_preprocessed_data(data=data,feature_name=ftr)
 
-        eod = equalized_odds_difference(y_true=np.array(y_true.values,dtype=int),
-                                  y_pred=np.array(y_pred.values,dtype=int),
+        eod = equalized_odds_difference(y_true=utils.to_int_srs(y_true),
+                                  y_pred=utils.to_int_srs(y_pred),
                                   sensitive_features=sensitive_feature_srs.values)
-        snsftr_eod_dict[ftr] = eod
+        snsftr_eod_dict[f'eod_{ftr}'] = eod
 
     return snsftr_eod_dict
 
 
-def get_feature_sub_groups_by_selection_rate(clf_model, X_train_df:pd.DataFrame, y_train:pd.Series, sensitive_feature_srs:pd.Series):
+def get_feature_sub_groups_by_selection_rate(y_true:pd.Series,
+                                             y_pred:pd.Series,
+                                             sensitive_feature_srs:pd.Series):
+
     metrics_dict = {"accuracy": accuracy_score, "selection_rate": selection_rate}
-    y_pred = clf_model.predict(X_train_df.astype(float).values)
-    # y_pred_proba = model_baseline.predict_proba(X_train, ntree_limit=model_baseline.best_ntree_limit)[:, 1]
 
     mf2 = MetricFrame(
         metrics=metrics_dict,
-        y_true=np.array(y_train.values,dtype=int),
+        y_true=y_true,
         y_pred=y_pred,
         sensitive_features=sensitive_feature_srs.values)
 
-    # mf2.by_group
-    metircs_df = mf2.by_group.reset_index()
-    metircs_df = metircs_df.sort_values(by=['selection_rate'])
-    priv = list(metircs_df[metircs_df.index + 1 > len(metircs_df) / 2].sensitive_feature_0)
-    unpriv = list(metircs_df[metircs_df.index + 1 <= len(metircs_df) / 2].sensitive_feature_0)
+    metircs_df = mf2.by_group
+    # max_selection_rate = metircs_df.selection_rate.max()
+    # min_selection_rate = metircs_df.selection_rate.min()
+    # selection_rate_threshold = (((max_selection_rate+min_selection_rate)/2)+avg_selection_rate)/2
+    selection_rate_threshold = metircs_df.selection_rate.mean()
+    metircs_df['sub_groups'] = (metircs_df.selection_rate > selection_rate_threshold) *1
 
-    return mf2.by_group, (tuple(unpriv),tuple(priv))
+    priv = tuple(metircs_df[metircs_df.sub_groups == 1].index.values)
+    unpriv = tuple(metircs_df[metircs_df.sub_groups == 0].index.values)
+
+    return mf2.by_group, (unpriv,priv)
 
 
 def build_gridsearch_cv_params(X_train_df:pd.DataFrame):
@@ -158,11 +174,12 @@ def build_gridsearch_cv_params(X_train_df:pd.DataFrame):
 
     return params_sets
 
-def build_gridsearch_cv(X_train_df:pd.DataFrame,
-                        y_train:pd.Series,
-                        sensitive_feature_name:str,
-                        sensitive_feature_srs:pd.Series,
-                        snsftr_slctrt_sub_groups:Tuple[Tuple,Tuple]):
+def run_gridsearch_cv(base_clf_class:BaseClf,
+                      X_train:pd.DataFrame,
+                      y_train:pd.Series,
+                      sensitive_feature_name:str,
+                      sensitive_feature_srs:pd.Series,
+                      snsftr_slctrt_sub_groups:Tuple[Tuple,Tuple]):
     # #################################################################################################################
     # RepeatedStratifiedKFold params
     n_splits = 5
@@ -173,21 +190,22 @@ def build_gridsearch_cv(X_train_df:pd.DataFrame,
     # https://stackoverflow.com/questions/49017257/custom-scoring-on-gridsearchcv-with-fold-dependent-parameter
     rskf = RepeatedStratifiedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=random_state)
     grid_search_idx = {}
-    for train_index, test_index in rskf.split(X_train_df.values, y_train.values):
-        grid_search_idx[hash(y_train[test_index].tobytes())] = np.copy(test_index)
+    y_train = utils.to_int_srs(y_train)
+    X_train = utils.to_float_df(X_train)
+    for train_index, test_index in rskf.split(X_train, y_train):
+        grid_search_idx[hash(y_train[test_index].values.tobytes())] = np.copy(test_index)
 
     def f2_measure(y_true, y_pred):
-        return fbeta_score(y_true, y_pred, beta=2)
+        return fbeta_score(y_true, y_pred, beta=2, average='macro')
 
     def f1_measure(y_true, y_pred):
-        return f1_score(y_true, y_pred)
+        return f1_score(y_true, y_pred, average='macro')
 
     def eod_measure(y_true, y_pred):
-        sensitivie_selected_arr = sensitive_feature_srs.values[grid_search_idx[hash(y_true.tobytes())]]
+        sensitive_selected_arr = sensitive_feature_srs.values[grid_search_idx[hash(y_true.values.tobytes())]]
         eod_score = abs(equalized_odds_difference(y_true,
                                                   y_pred,
-                                                  sensitive_features=sensitivie_selected_arr))
-
+                                                  sensitive_features=sensitive_selected_arr))
         print(f'EOD Score:{eod_score}')
         return eod_score
 
@@ -196,163 +214,53 @@ def build_gridsearch_cv(X_train_df:pd.DataFrame,
 
     # Define the parameter grid space
     param_grid = {
+        'fairxgboost__base_clf_class':[base_clf_class],
         'fairxgboost__anomalies_per_to_remove': [0.2, 0.3],  # 0.1,0.2 !!!!!!!!!!!!!!!!!!
         'fairxgboost__include_sensitive_feature': [True, False],  # False
-        'fairxgboost__sensitive_col_name': sensitive_feature_name,
+        'fairxgboost__sensitive_col_name': [sensitive_feature_name],
         'fairxgboost__remove_side': ['only_non_privilaged', 'only_privilaged', 'all'],
         # 'only_privilaged'(A93,A94),'only_non_privilaged'(A91,A92),'all'
-        'fairxgboost__data_columns': [tuple(X_train_df.columns)],
-        'fairxgboost__anomaly_model_params': build_gridsearch_cv_params(X_train_df),  # global_params_sets !!!!!!!!!!!!!!!!!!!
-        'fairxgboost__sensitive_privilage_group': [snsftr_slctrt_sub_groups],
+        'fairxgboost__data_columns': [tuple(X_train.columns)],
+        'fairxgboost__anomaly_model_params': build_gridsearch_cv_params(X_train),  # global_params_sets !!!!!!!!!!!!!!!!!!!
+        'fairxgboost__snsftr_slctrt_sub_groups': [snsftr_slctrt_sub_groups],
         'fairxgboost__verbose': [True],
     }
 
-    # Initialize the CV object
+    #best standard metirics for imbalanced data is probably fbeta_<x> (f1 is the base case)
+    # https://neptune.ai/blog/f1-score-accuracy-roc-auc-pr-auc#2 <--- IMPORTANT REFERENCE !!!
+
+    # Initializethe CV object
+    # https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.GridSearchCV.html
+    # https://scikit-learn.org/stable/modules/grid_search.html#multimetric-grid-search
+    # https://scikit-learn.org/stable/auto_examples/model_selection/plot_multi_metric_evaluation.html
+    # https://datascience.stackexchange.com/questions/43793/how-to-get-mean-test-scores-from-gridsearchcv-with-multiple-scorers-scikit-lea
+    # https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.GridSearchCV.html
+    # https://hub.gke2.mybinder.org/user/scikit-learn-scikit-learn-s0vnxwm7/lab/tree/notebooks/auto_examples/model_selection/plot_learning_curve.ipynb
+    # https://hub.gke2.mybinder.org/user/scikit-learn-scikit-learn-s0vnxwm7/lab/tree/notebooks/auto_examples/model_selection/plot_roc.ipynb
     pipe_cv = GridSearchCV(estimator=estimator,
                            param_grid=param_grid,
                            cv=rskf,
-                           scoring={"AUC": "roc_auc",
-                                    "F1": make_scorer(f1_measure, greater_is_better=True),
-                                    "EOD": make_scorer(eod_measure, greater_is_better=False)},
-                           refit="EOD",
+                           scoring={'eod':make_scorer(eod_measure, greater_is_better=False),
+                                    'f1':make_scorer(f1_measure,greater_is_better=True),
+                                    'fbeta_2':make_scorer(f2_measure,greater_is_better=True)},
+                           refit = 'eod',#for multiple scorers specify the scorer string id (in the scorers dictionary) to use
+                           return_train_score = False,
                            n_jobs=1)
 
+    pipe_cv.fit(X_train, y_train)
 
-class RobustRandomCutForest():
-    """
-    RobustRandomCutForest.
-    The Robust Random Cut Forest (RRCF) algorithm is an ensemble method for detecting outliers in streaming data. RRCF offers a number of features that many competing anomaly detection algorithms lack. Specifically, RRCF:
-    Is designed to handle streaming data.
-    Performs well on high-dimensional data.
-    Reduces the influence of irrelevant dimensions.
-    Gracefully handles duplicates and near-duplicates that could otherwise mask the presence of outliers.
-    Features an anomaly-scoring algorithm with a clear underlying statistical meaning.
-    This repository provides an open-source implementation of the RRCF algorithm and its core data structures for the purposes of facilitating experimentation and enabling future extensions of the RRCF algorithm.
-    Parameters
-    ----------
-    num_trees : int, default=100
-        The number of trees.
-    tree_size : int, default=512
-        The maximum depth of each tree
+    print('#' * 100)
+    print(f'Best Params:\n{pipe_cv.best_params_}')
+    print('#' * 100)
+    results = pd.DataFrame(pipe_cv.cv_results_)
+    datetime_tag = datetime.now.strftime("%y%m%d-%H%M%S")
+    results.to_csv(f'./gscv_results/{datetime_tag}.csv')
+    print(f'results:\n{results}')
+    # print(f'Predict on X_test:\n{pipe_cv.predict_proba(preprocessed_test_data)}')
+    # print('#'*100)
+    # print(f'Score:\n{pipe_cv.score(preprocessed_test_data, y_test)}')
+    # print('#'*100)
 
-    Attributes
-    ----------
-
-    avg_cod : Compute average CoDisp
-              Explanation about CoDisp:
-              The likelihood that a point is an outlier is measured by its collusive displacement
-              (CoDisp): if including a new point significantly changes the model complexity (i.e. bit depth),
-              then that point is more likely to be an outlier.
-              tree.codisp('inlier') >>> 1.75
-              tree.codisp('outlier') >>> 39.0
-
-    Notes
-    -----
-    https://github.com/kLabUM/rrcf
-
-    """
-
-    def __init__(self, *, num_trees=100, tree_size=512):
-        print('>> Init RobustRandomCutForest')
-        self.num_trees = num_trees
-        self.tree_size = tree_size
-
-    def fit(self, X, y=None):
-        """
-        Fit estimator.
-        Parameters
-        ----------
-        X : {array-like, sparse matrix} of shape (n_samples, n_features)
-            The input samples. Use ``dtype=np.float32`` for maximum
-            efficiency. Sparse matrices are also supported, use sparse
-            ``csc_matrix`` for maximum efficiency.
-        y : Ignored
-            Not used, present for API consistency by convention.
-
-        Returns
-        -------
-        self : object
-            Fitted estimator.
-        """
-        print('>> fit RobustRandomCutForest')
-        # Check that X and y have correct shape
-        X, y = check_X_y(X, y)
-        # Store the classes seen during fit
-        # self.classes_ = unique_labels(y)
-
-        # RRCF parameters
-        self.avg_codisp = []
-        self.epsilon = 0.0001
-
-        n = len(X)
-        forest = []
-        # build trees for RRCF
-        while len(forest) < self.num_trees:
-            # Select random subsets of points uniformly from point set
-            ixs = np.random.choice(n,
-                                   size=(1, self.tree_size),  # size=(n // tree_size, tree_size),
-                                   replace=True)
-            # Add sampled trees to forest
-            trees = [rrcf.RCTree(X[ix] + self.epsilon,
-                                 index_labels=ix) for ix in ixs]
-            forest.extend(trees)
-
-        # Compute average CoDisp
-        avg_codisp_d = pd.Series(0.0, index=np.arange(n))
-        index = np.zeros(n)
-        for tree in forest:
-            codisp = pd.Series({leaf: tree.codisp(leaf)
-                                for leaf in tree.leaves})
-            avg_codisp_d[codisp.index] += codisp
-            np.add.at(index, codisp.index.values, 1.0)
-        avg_codisp_d /= index
-        self.avg_codisp.append(avg_codisp_d)
-
-        # define a threshold for label 1 and 0 in RRCF algorithm
-        self.avg_cod = self.avg_codisp[-1]
-
-        # Return the classifier
-        return self
-
-    def set_params(self, **parameters):
-        for parameter, value in parameters.items():
-            setattr(self, parameter, value)
-        return self
-
-    def predict(self, X):
-        """
-        Predict if a particular sample is an outlier or not.
-        Parameters
-        ----------
-        X : {array-like, sparse matrix} of shape (n_samples, n_features)
-            The input samples. Internally, it will be converted to
-            ``dtype=np.float32`` and if a sparse matrix is provided
-            to a sparse ``csr_matrix``.
-        Returns
-        -------
-        is_inlier : ndarray of shape (n_samples,)
-            For each observation, tells whether or not (+1 or -1) it should
-            be considered as an inlier according to the fitted model.
-        """
-        check_is_fitted(self)
-        decision_func = self.decision_function(X)
-        is_inlier = np.ones_like(decision_func, dtype=int)
-        is_inlier[decision_func < 0] = -1
-        return is_inlier
-
-    def decision_function(self, X):
-        """
-        Average anomaly score of CoDisp.
-
-        Returns
-        -------
-        scores : ndarray of shape (n_samples,)
-            The anomaly score of the input samples.
-            The lower, the more abnormal. Negative scores represent outliers,
-            positive scores represent inliers.
-        """
-        print('>> decision_function RobustRandomCutForest')
-        return self.avg_cod
 
 
 class FairXGBClassifier(ClassifierMixin, BaseEstimator):
@@ -372,36 +280,21 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
         The classes seen at :meth:`fit`.
     """
 
-    def __init__(self, anomalies_per_to_remove=None, remove_side=None,
+    def __init__(self, base_clf_class:BaseClf=None, anomalies_per_to_remove=None, remove_side=None,
                  include_sensitive_feature=None, sensitive_col_name=None,
-                 data_columns=None, anomaly_model_params=None, sensitive_privilage_group=None,
-                 verbose=False):
+                 data_columns=None, anomaly_model_params=None, snsftr_slctrt_sub_groups=None,
+                 verbose=False, do_plots:bool=False):
 
-        # XGBClassifier parameters as 1b
-        self.XGBClassifier_params = {
-            'n_estimators': 3000,
-            'objective': 'binary:logistic',
-            'learning_rate': 0.005,
-            # 'gamma':0.0,
-            'subsample': 0.555,
-            'colsample_bytree': 0.70,
-            'min_child_weight': 3,
-            'max_depth': 8,
-            # 'seed':1024,
-            'n_jobs': -1,
-            'use_label_encoder': False
-        }
-
-        self.XGBClassifier = XGBClassifier(**self.XGBClassifier_params)
-
+        self.base_clf_class = base_clf_class
         self.anomalies_per_to_remove = anomalies_per_to_remove
         self.include_sensitive_feature = include_sensitive_feature
         self.sensitive_col_name = sensitive_col_name
         self.remove_side = remove_side
         self.data_columns = data_columns
         self.anomaly_model_params = anomaly_model_params
-        self.sensitive_privilage_group = sensitive_privilage_group
+        self.snsftr_slctrt_sub_groups = snsftr_slctrt_sub_groups
         self.verbose = verbose
+        self.do_plots = do_plots
 
     def __plot_histogram(self, score_input):
         n, bins, patches = plt.hist(x=score_input, bins='auto', color='#0504aa',
@@ -417,25 +310,23 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
     def __drop_sensitive_features(self):
         # remove the sensitive name (eg: 'sex')
         if self.sensitive_col_name in self.data.columns:
-            return data.drop(columns=[self.sensitive_col_name])
+            return self.data.drop(columns=[self.sensitive_col_name])
         else:
             # remove the sensitive columns (eg: 'statussex_A91')
-            onehot_sensitive_feature_cols = []
-            for col in self.data.columns:
-                if col.startswith(self.sensitive_col_name):
-                    onehot_sensitive_feature_cols.append(col)
-            return self.data.drop(columns=onehot_sensitive_feature_cols)
+            return self.data.drop(columns=(list(self.snsftr_slctrt_sub_groups[0])+list(self.snsftr_slctrt_sub_groups[1])))
 
     def get_params(self, deep=True):
         # suppose this estimator has parameters "alpha" and "recursive"
-        return {"anomalies_per_to_remove": self.anomalies_per_to_remove,
+        return {"base_clf_class": self.base_clf_class,
+                "anomalies_per_to_remove": self.anomalies_per_to_remove,
                 "include_sensitive_feature": self.include_sensitive_feature,
                 "sensitive_col_name": self.sensitive_col_name,
                 "remove_side": self.remove_side,
                 "data_columns": self.data_columns,
                 "anomaly_model_params": self.anomaly_model_params,
-                "sensitive_privilage_group": self.sensitive_privilage_group,
-                "verbose": self.verbose}
+                "snsftr_slctrt_sub_groups": self.snsftr_slctrt_sub_groups,
+                "verbose": self.verbose,
+                "do_plots": self.do_plots}
 
     def set_params(self, **parameters):
         for parameter, value in parameters.items():
@@ -480,10 +371,10 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
         # Outlier detectors from sklean and RRCF
         anomaly_algorithms = {
             "IF": IsolationForest,
-            "SVM": svm.OneClassSVM,
+            "SVM": OneClassSVM,
             "LOF": LocalOutlierFactor,
             "RC": EllipticEnvelope,
-            "RRCF": RobustRandomCutForest}
+            "RRCF": RRCF}
 
         # ##############################################################################################
         # fit models
@@ -493,8 +384,7 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
         if self.verbose:
             print(f'  Selected algorithm:{algorithm_name}')
             print(f'  Algorithm params:{unsupervised_model_params}')
-            print(
-                f'  Grid params: anomalies_per_to_remove:{self.anomalies_per_to_remove},include_sensitive_feature:{self.include_sensitive_feature},remove_side:{self.remove_side}')
+            print(f'  Grid params: anomalies_per_to_remove:{self.anomalies_per_to_remove}, include_sensitive_feature:{self.include_sensitive_feature}, remove_side:{self.remove_side}')
 
         algorithm = anomaly_algorithms[algorithm_name](**unsupervised_model_params)
         algorithm.fit(data_arr, self.y_)
@@ -505,7 +395,8 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
         score_idx = list(score_series.index)
         if self.verbose:
             print(f'  Algorithm score:{list(score_series.values)}')
-            self.__plot_histogram(list(score_series.values))
+            if self.do_plots:
+                self.__plot_histogram(list(score_series.values))
         # ##############################################################################################
         # remove anomalies by using the selected unsupervised algorithm
         num_remove_samples = int(len(self.data) * self.anomalies_per_to_remove)
@@ -524,11 +415,12 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
         # ##############################################################################################
         # Run XGBoost without anomalies
 
-        # print(f'sensitive_privilage_group: {self.sensitive_privilage_group}')
+        # print(f'snsftr_slctrt_sub_groups: {self.snsftr_slctrt_sub_groups}')
         # print(f'sensitive config: {self.sensitive_col_name}')
-        sensitive_feature_one_hot_columns = [x for x in self.data.columns if x.startswith(self.sensitive_col_name)]
+        # sensitive_feature_one_hot_columns = [x for x in self.data.columns if x.startswith(self.sensitive_col_name)]
         # print(f'sensitive columns arr: {sensitive_feature_one_hot_columns}')
-        non_privilage_group = list(set(sensitive_feature_one_hot_columns) - set(self.sensitive_privilage_group))
+        non_privilage_group = self.snsftr_slctrt_sub_groups[0]
+        privilage_group = self.snsftr_slctrt_sub_groups[1]
         # print(f'non-privilaged columns: {non_privilage_group}')
 
         anomalies_idx = set(anomalies_idx)
@@ -536,7 +428,7 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
         # print(f'indexes before filtering sensitive: {anomalies_idx}')
         if self.remove_side == 'only_privilaged':
             ## filter the rows of the non-privilaged
-            for idx_np in self.sensitive_privilage_group:
+            for idx_np in privilage_group:
                 # print(f'indexes of non privilaged: {set(list(self.data.index[self.data[idx_np] == 1]))}')
                 filter_sub_sensitive_group += (list(self.data.index[self.data[idx_np] == 1]))
                 # print(f'filter_sub_sensitive_group:{filter_sub_sensitive_group}')
@@ -546,6 +438,8 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
                 # print(f'indexes of privilaged: {set(list(self.data.index[self.data[idx_p] == 1]))}')
                 filter_sub_sensitive_group += (list(self.data.index[self.data[idx_p] == 1]))
                 # print(f'indexes after filtering sensitive: {anomalies_idx}')
+        else:# remove all anomalies
+            filter_sub_sensitive_group = anomalies_idx
 
         anomalies_idx_to_remove = anomalies_idx & set(filter_sub_sensitive_group)
 
@@ -557,8 +451,16 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
             # print(f'statussex_A94:{list(self.data["statussex_A94"].values)}')
             print(f'  Number of anomalies to be removed:{len(anomalies_idx_to_remove)}')
 
-        self.model = self.XGBClassifier.fit(self.data.drop(list(anomalies_idx_to_remove)),
-                                            np.delete(self.y_, list(anomalies_idx_to_remove)))
+        # https: // xgboost.readthedocs.io / en / stable / python / python_api.html
+        self.model, self.ntree_limit = self.base_clf_class.fit(X_train=self.data.drop(list(anomalies_idx_to_remove)),
+                                                                y_train=np.delete(self.y_, list(anomalies_idx_to_remove)),
+                                                                ntree_limit=0)
+
+
+        # self.model = self.XGBClassifier.fit(X=self.data.drop(list(anomalies_idx_to_remove)),
+        #                                     y=np.delete(self.y_, list(anomalies_idx_to_remove)),
+        #                                     eval_metric='logloss',
+        #                                     verbose=False)
 
         # Return the classifier
         return self
@@ -575,15 +477,17 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
             The label for each sample is the label of the closest sample
             seen during fit.
         """
-        self.y_pred = self.model.predict(X)
+        y_pred, y_pred_proba = self.base_clf_class.predict(clf= self.model,
+                                                            X = X,
+                                                            ntree_limit=self.ntree_limit)
 
-        return self.y_pred
+        return y_pred
 
     def predict_proba(self, X):
-        self.y_pred_proba = self.model.predict_proba(X)
-
-        return self.y_pred_proba
+        y_predict, y_pred_proba = self.base_clf_class.predict(clf= self.model,
+                                                                X = X,
+                                                                ntree_limit=self.ntree_limit)
+        return y_pred_proba
 
     def decision_function(self, X):
-
         return self.predict_proba(X)

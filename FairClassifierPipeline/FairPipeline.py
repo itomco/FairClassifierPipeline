@@ -631,10 +631,10 @@ class AggregatedSubGroupsImputer(BaseEstimator, TransformerMixin):
         return X
         
 ########################## Debug Transformer #####################
-def pipeline_debug(df:pd.DataFrame, caller_msg:str=None):
-    caller_msg = '' if caller_msg is None else f" '{caller_msg}'"
-    print(f"debug{caller_msg}: df.columns:{df.columns}\n")
-    return df
+# def pipeline_debug(df:pd.DataFrame, caller_msg:str=None):
+#     caller_msg = '' if caller_msg is None else f" '{caller_msg}'"
+#     # print(f"debug{caller_msg}: df.columns:{df.columns}\n")
+#     return df
 
 # FunctionTransformer(pipeline_debug, kw_args={'caller_msg':'label'}).fit_transform(pd.DataFrame({'a':[1,2]}))
 
@@ -721,8 +721,8 @@ def create_pipeline(config:Dict) -> pipe:
                                                          kw_args={'threshold': config['max_sparse_col_threshold']})),
             ('trim_numeric_str_stabs',FunctionTransformer(numeric_str_feature_encoder,
                                                           kw_args={'numerical_str_features_stubs':config['numerical_str_features_stubs']})),
-            # ('convert_numeric_cols_to_ord_cat',FunctionTransformer(convert_numeric_cols_to_ord_cat,
-            #                                                        kw_args={'cont_to_cat_cols_settings':config['numeric_to_ord_cat']})),
+            ('convert_numeric_cols_to_ord_cat',FunctionTransformer(convert_numeric_cols_to_ord_cat,
+                                                                   kw_args={'cont_to_cat_cols_settings':config['numeric_to_ord_cat']})),
             #sensitive feature imputer is added (just in case) though in most cases it is more reasonable 
             # to remove rows with missing values in this feature before the data imputation stage
             ('imputer_sf',AggregatedSubGroupsImputer(strategy='most_frequent', 
@@ -774,4 +774,54 @@ def get_pipeline_final_columns(ppl):
 
 
 
+def run_fair_data_preprocess_pipeline(data:pd.DataFrame, config:Dict, stratify_mode:str='no_stratify'):
+    assert stratify_mode in ['no_stratify', 'full', 'sensitive_feature', 'label'], \
+        "stratify_mode value must be one of the folowing options: ['no_stratify', 'all', 'sensitive_feature', 'label']"
+
+    data = data.copy()
+    # data['stratify_col'] = [str(lbl)+str(sstv) for lbl, sstv in zip(data[config['label_col']],data[config['sensitive_feature']])]
+    if stratify_mode == 'full':
+        data['stratify_col'] = data[config['label_col']].astype(str) + data[config['sensitive_feature']].astype(str)
+        try:
+            train_df, test_df = train_test_split(data, test_size=0.2,random_state=1, stratify=data['stratify_col'])
+        except BaseException as e:
+            train_df, test_df = train_test_split(data, test_size=0.2,random_state=1, stratify=data[config['label_col']])
+
+        train_df.drop(columns=['stratify_col'])
+        test_df.drop(columns=['stratify_col'])
+    elif stratify_mode == 'sensitive_feature':
+        try:
+            train_df, test_df = train_test_split(data, test_size=0.2,random_state=1, stratify=data['sensitive_feature'])
+        except BaseException as e:
+            train_df, test_df = train_test_split(data, test_size=0.2,random_state=1)
+    elif stratify_mode == 'label':
+        train_df, test_df = train_test_split(data, test_size=0.2, random_state=1, stratify=data[config['label_col']])
+    else:
+        train_df, test_df = train_test_split(data, test_size=0.2, random_state=1)
+
+
+    ppl = create_pipeline(config)
+    # categorical_numerical_preprocessor.fit_transform(X_train, y_train)
+    preprocessed_train_data = ppl.fit_transform(train_df)
+    final_columns = get_pipeline_final_columns(ppl)
+
+    preprocessed_train_data = pd.DataFrame(data=preprocessed_train_data, columns=final_columns)
+
+    # https://datatofish.com/numpy-array-to-pandas-dataframe/ - following this tutorial, a numpy array containing multiple types of columns values results with all object array.
+    # https://stackoverflow.com/questions/61346021/create-a-mixed-type-pandas-dataframe-using-an-numpy-array-of-type-object
+    preprocessed_train_data = preprocessed_train_data.convert_dtypes()
+
+    X_train, y_train = preprocessed_train_data.drop(columns=[config['label_col']], axis=1), preprocessed_train_data[config['label_col']]
+    # print(preprocessed_train_data.head(3))
+
+    ####Run the Data PreProcessing Pipeline on Test Dataset
+
+    preprocessed_test_data = ppl.transform(test_df)
+    preprocessed_test_data = pd.DataFrame(data=preprocessed_test_data, columns=final_columns)
+    preprocessed_test_data = preprocessed_test_data.convert_dtypes()
+    X_test, y_test = preprocessed_test_data.drop(columns=[config['label_col']], axis=1), preprocessed_test_data[config['label_col']]
+
+    # print(preprocessed_test_data.head(3))
+
+    return(ppl, preprocessed_train_data, preprocessed_test_data, X_train, X_test, y_train, y_test)
 

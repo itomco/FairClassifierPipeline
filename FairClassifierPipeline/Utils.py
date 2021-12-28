@@ -70,9 +70,13 @@ from fairlearn.metrics import (
     equalized_odds_difference
 )
 import itertools
+def to_int_srs(series:pd.Series) -> pd.Series:
+    return pd.Series(np.array(series.values,dtype=int))
 
+def to_float_df(df:pd.DataFrame) -> pd.DataFrame:
+    return df.astype(float)
 
-def print_confusion_matrix(test_labels, test_pred, y_pred_proba = None):
+def print_confusion_matrix(test_labels, test_pred, y_pred_proba = None, do_plot:bool=False):
     print('Classification Report:')
     print(classification_report(test_labels, test_pred, digits=4))
 
@@ -80,20 +84,21 @@ def print_confusion_matrix(test_labels, test_pred, y_pred_proba = None):
     print(f'True Positive Rate [Recall(1)]: {cm[1, 1] / sum(cm[1, :])}')
     print(f'False Positive Rate [1-RCL(0)]: {cm[0, 1] / sum(cm[0, :])}\n')
 
-    print(f'Accuracy with default threshold=50%: {(cm[0, 0] + cm[1, 1]) * 100 / (sum(cm).sum()):.4f}%\n')
+    print(f'Accuracy with default threshold: {(cm[0, 0] + cm[1, 1]) * 100 / (sum(cm).sum()):.4f}%\n')
 
-    ax = plt.subplot()
-    sns.heatmap(cm, annot=True, ax=ax, cmap='Reds', fmt="d")
+    if do_plot:
+        ax = plt.subplot()
+        sns.heatmap(cm, annot=True, ax=ax, cmap='Reds', fmt="d")
 
-    auc_title_tag = ''
-    if y_pred_proba is not None:
-        AUC = roc_auc_score(test_labels, y_pred_proba)
-        auc_title_tag = f" [AUC:{AUC:.4f}]"
+        auc_title_tag = ''
+        if y_pred_proba is not None:
+            AUC = roc_auc_score(test_labels, y_pred_proba)
+            auc_title_tag = f" [AUC:{AUC:.4f}]"
 
-    ax.set_title(f'Confusion Matrix{auc_title_tag}')
+        ax.set_title(f'Confusion Matrix{auc_title_tag}')
 
-    ax.set_xlabel('Predicted Labels')
-    ax.set_ylabel('True Labels')
+        ax.set_xlabel('Predicted Labels')
+        ax.set_ylabel('True Labels')
 
-    ax.xaxis.set_ticklabels([False, True])
-    ax.yaxis.set_ticklabels([False, True])
+        ax.xaxis.set_ticklabels([False, True])
+        ax.yaxis.set_ticklabels([False, True])
