@@ -9,3 +9,4 @@ fairlearn~=0.7.0
 setuptools~=56.0.0
 matplotlib~=3.5.1
 seaborn~=0.11.2
+sklearn_pandas~=2.2.0

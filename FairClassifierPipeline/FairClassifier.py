@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 import sklearn
 from typing import *
-import datetime
+from datetime import datetime
 from collections import OrderedDict
 
 #
@@ -53,7 +53,7 @@ import rrcf
 
 #classifier
 from xgboost import XGBClassifier
-import FairClassifierPipeline.RobustRandomCutForest as RRCF
+from FairClassifierPipeline.RobustRandomCutForest import RobustRandomCutForest as RRCF
 import FairClassifierPipeline.Utils as utils
 from BaseClassifiers import BaseClf
 
@@ -216,7 +216,7 @@ def run_gridsearch_cv(base_clf_class:BaseClf,
                 f"Exception raised due to insufficient values for some of the sub groups:\n{pd.Series(sensitive_selected_arr).value_counts()}")
             eod_score = 10
 
-        print(f'EOD Score:{eod_score}')
+        # print(f'EOD Score:{eod_score}')
         return eod_score
 
     # def eod_measure(y_true:pd.Series, y_pred:np.ndarray) -> float:
@@ -233,7 +233,7 @@ def run_gridsearch_cv(base_clf_class:BaseClf,
     # Define the parameter grid space
     param_grid = {
         'fairxgboost__base_clf_class':[base_clf_class],
-        'fairxgboost__anomalies_per_to_remove': [0.2, 0.3],  # 0.1,0.2 !!!!!!!!!!!!!!!!!!
+        'fairxgboost__anomalies_per_to_remove': [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4],  # 0.1,0.2 !!!!!!!!!!!!!!!!!!
         'fairxgboost__include_sensitive_feature': [True, False],  # False
         'fairxgboost__sensitive_col_name': [sensitive_feature_name],
         'fairxgboost__remove_side': ['only_non_privilaged', 'only_privilaged', 'all'],
@@ -241,7 +241,7 @@ def run_gridsearch_cv(base_clf_class:BaseClf,
         'fairxgboost__data_columns': [tuple(X_train.columns)],
         'fairxgboost__anomaly_model_params': build_gridsearch_cv_params(X_train),  # global_params_sets !!!!!!!!!!!!!!!!!!!
         'fairxgboost__snsftr_slctrt_sub_groups': [snsftr_slctrt_sub_groups],
-        'fairxgboost__verbose': [True],
+        'fairxgboost__verbose': [False],
     }
 
     #best standard metirics for imbalanced data is probably fbeta_<x> (f1 is the base case)
@@ -265,10 +265,9 @@ def run_gridsearch_cv(base_clf_class:BaseClf,
                            return_train_score = False,
                            n_jobs=1)
 
-    t0 = datetime.datetime.now()
+    t0 = datetime.now()
     pipe_cv.fit(X_train, y_train)
-    total_time_secs = datetime.datetime.now()
-    print(f"Gridsearch_cv total run time: {total_time_secs}")
+
 
     print('#' * 100)
     print(f'Best Params:\n{pipe_cv.best_params_}')
@@ -281,6 +280,9 @@ def run_gridsearch_cv(base_clf_class:BaseClf,
     # print('#'*100)
     # print(f'Score:\n{pipe_cv.score(preprocessed_test_data, y_test)}')
     # print('#'*100)
+    total_time_secs = datetime.now()
+    print(f"Gridsearch_cv total run time: {total_time_secs}")
+
     return pipe_cv
 
 
