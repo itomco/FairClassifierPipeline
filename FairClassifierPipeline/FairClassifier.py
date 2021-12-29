@@ -208,13 +208,13 @@ def run_gridsearch_cv(base_clf_class:BaseClf,
     def eod_measure(y_true: pd.Series, y_pred: np.ndarray) -> float:
         sensitive_selected_arr = sensitive_feature_srs.values[grid_search_idx[hash(y_true.values.tobytes())]]
         try:
-            eod_score = abs(equalized_odds_difference(utils.to_int_srs(y_true),
+            eod_score = equalized_odds_difference(utils.to_int_srs(y_true),
                                                       utils.to_int_srs(pd.Series(y_pred)),
-                                                      sensitive_features=sensitive_selected_arr))
+                                                      sensitive_features=sensitive_selected_arr)
         except BaseException as e:
             print(
                 f"Exception raised due to insufficient values for some of the sub groups:\n{pd.Series(sensitive_selected_arr).value_counts()}")
-            eod_score = 1
+            eod_score = 10
 
         print(f'EOD Score:{eod_score}')
         return eod_score
