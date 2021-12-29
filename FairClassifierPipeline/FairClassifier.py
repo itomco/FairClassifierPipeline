@@ -280,7 +280,7 @@ def run_gridsearch_cv(base_clf_class:BaseClf,
     # print('#'*100)
     # print(f'Score:\n{pipe_cv.score(preprocessed_test_data, y_test)}')
     # print('#'*100)
-    total_time_secs = datetime.now()
+    total_time_secs = datetime.now() -t0
     print(f"Gridsearch_cv total run time: {total_time_secs}")
 
     return pipe_cv

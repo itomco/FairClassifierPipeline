@@ -84,7 +84,7 @@ from FairClassifierPipeline import FairClassifier as fair_clf
 
 def create_config() -> Dict:
     config = {}
-    config['sensitive_features'] = ['statussex','age','job']
+    config['sensitive_features'] = ['statussex','age']
     config['label_col'] = 'classification'
     config['label_ordered_classes'] = ([1,2], [1,0]) #relevant for Fairness Positive Label Value
 
