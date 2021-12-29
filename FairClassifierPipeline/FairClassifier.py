@@ -54,8 +54,9 @@ import rrcf
 #classifier
 from xgboost import XGBClassifier
 from FairClassifierPipeline.RobustRandomCutForest import RobustRandomCutForest as RRCF
+from FairClassifierPipeline import FairPipeline as fair_ppl
 import FairClassifierPipeline.Utils as utils
-from BaseClassifiers import BaseClf
+from BaseClassifiers.BaseClf import BaseClf
 
 
 from pprint import pprint
@@ -75,215 +76,285 @@ from fairlearn.metrics import (
 )
 import itertools
 
-def merge_feature_onehot_columns(feature_name:str, data:pd.DataFrame) -> pd.Series:
-    # sensitive_feature_name = config['sensitive_feature']
+class FairClassifier:
+    @staticmethod
+    def merge_feature_onehot_columns(feature_name:str, data:pd.DataFrame) -> pd.Series:
+        # sensitive_feature_name = config['sensitive_feature']
 
-    sensitive_feature_one_hot_columns = [col for col in data.columns if feature_name in col]
+        sensitive_feature_one_hot_columns = [col for col in data.columns if feature_name in col]
 
-    feature_df = pd.DataFrame(data=[''] * data.shape[0], columns=[feature_name])
-    for col in sensitive_feature_one_hot_columns:
-        feature_df.loc[(data[col].values == 1)] = col
+        feature_df = pd.DataFrame(data=[''] * data.shape[0], columns=[feature_name])
+        for col in sensitive_feature_one_hot_columns:
+            feature_df.loc[(data[col].values == 1)] = col
 
-    # sensitive_test_feature = pd.DataFrame(data=['']*preprocessed_test_data.shape[0], columns=[sensitive_feature_name])
-    # for col in sensitive_feature_one_hot_columns:
-    #     sensitive_test_feature.loc[preprocessed_test_data[col] == 1] = col
+        # sensitive_test_feature = pd.DataFrame(data=['']*preprocessed_test_data.shape[0], columns=[sensitive_feature_name])
+        # for col in sensitive_feature_one_hot_columns:
+        #     sensitive_test_feature.loc[preprocessed_test_data[col] == 1] = col
 
-    return feature_df[feature_name]
+        return feature_df[feature_name]
 
-def get_feature_col_from_preprocessed_data(feature_name:str, data:pd.DataFrame) -> pd.Series:
-    sensitive_feature_srs = None
-    if feature_name not in data.columns:
-        sensitive_feature_srs = merge_feature_onehot_columns(feature_name=feature_name, data=data)
-    else:
-        sensitive_feature_srs = data[feature_name]
-
-    return sensitive_feature_srs
-
-
-def get_eod_for_sensitive_features(sensitive_features_names:List[str],
-                                   y_true:pd.Series,
-                                   y_pred:pd.Series,
-                                   data:pd.DataFrame):
-    snsftr_eod_dict = {}
-    for ftr in sensitive_features_names:
+    @staticmethod
+    def get_feature_col_from_preprocessed_data(feature_name:str, data:pd.DataFrame) -> pd.Series:
         sensitive_feature_srs = None
-        sensitive_feature_srs = get_feature_col_from_preprocessed_data(data=data,feature_name=ftr)
+        if feature_name not in data.columns:
+            sensitive_feature_srs = FairClassifier.merge_feature_onehot_columns(feature_name=feature_name, data=data)
+        else:
+            sensitive_feature_srs = data[feature_name]
 
-        eod = equalized_odds_difference(y_true=utils.to_int_srs(y_true),
-                                  y_pred=utils.to_int_srs(y_pred),
-                                  sensitive_features=sensitive_feature_srs.values)
-        snsftr_eod_dict[f'eod_{ftr}'] = eod
-
-    return snsftr_eod_dict
+        return sensitive_feature_srs
 
 
-def get_feature_sub_groups_by_selection_rate(y_true:pd.Series,
-                                             y_pred:pd.Series,
-                                             sensitive_feature_srs:pd.Series):
+    @staticmethod
+    def get_fairness_score_for_sensitive_features(sensitive_features_names:List[str],
+                                                  fairness_metric:str,
+                                                  y_true:pd.Series,
+                                                  y_pred:pd.Series,
+                                                  data:pd.DataFrame):
+        assert fairness_metric.lower() == 'eod', 'currently support eod only'
 
-    metrics_dict = {"accuracy": accuracy_score, "selection_rate": selection_rate}
+        snsftr_eod_dict = {}
+        for ftr in sensitive_features_names:
+            sensitive_feature_srs = None
+            sensitive_feature_srs = FairClassifier.get_feature_col_from_preprocessed_data(data=data,feature_name=ftr)
 
-    mf2 = MetricFrame(
-        metrics=metrics_dict,
-        y_true=y_true,
-        y_pred=y_pred,
-        sensitive_features=sensitive_feature_srs.values)
+            eod = equalized_odds_difference(y_true=utils.to_int_srs(y_true),
+                                      y_pred=utils.to_int_srs(y_pred),
+                                      sensitive_features=sensitive_feature_srs.values)
+            snsftr_eod_dict[f'{ftr}:eod'] = eod
 
-    metircs_df = mf2.by_group
-    # max_selection_rate = metircs_df.selection_rate.max()
-    # min_selection_rate = metircs_df.selection_rate.min()
-    # selection_rate_threshold = (((max_selection_rate+min_selection_rate)/2)+avg_selection_rate)/2
-    selection_rate_threshold = metircs_df.selection_rate.mean()
-    metircs_df['sub_groups'] = (metircs_df.selection_rate > selection_rate_threshold) *1
-
-    priv = tuple(metircs_df[metircs_df.sub_groups == 1].index.values)
-    unpriv = tuple(metircs_df[metircs_df.sub_groups == 0].index.values)
-
-    return mf2.by_group, (unpriv,priv)
+        return snsftr_eod_dict
 
 
-def build_gridsearch_cv_params(X_train_df:pd.DataFrame):
-    if_param_grid = {'n_estimators': [100, 150],
-                     'max_samples': ['auto', 0.5],
-                     'contamination': ['auto'],
-                     'max_features': [10, 15],
-                     'bootstrap': [True],
-                     'n_jobs': [-1]}
+    @staticmethod
+    def get_feature_sub_groups_by_selection_rate(y_true:pd.Series,
+                                                 y_pred:pd.Series,
+                                                 sensitive_feature_srs:pd.Series):
 
-    svm_param_grid = {'kernel': ['rbf'],
-                      'gamma': ['auto', 1, 0.1, 0.01, 0.001, 0.0001]}
+        metrics_dict = {"accuracy": accuracy_score, "selection_rate": selection_rate}
 
-    rc_param_grid = {'random_state': [42]}
+        mf2 = MetricFrame(
+            metrics=metrics_dict,
+            y_true=y_true,
+            y_pred=y_pred,
+            sensitive_features=sensitive_feature_srs.values)
 
-    lof_param_grid = {'n_neighbors': [10, 20, 30],
-                      'novelty': [True]}
+        metircs_df = mf2.by_group
+        # max_selection_rate = metircs_df.selection_rate.max()
+        # min_selection_rate = metircs_df.selection_rate.min()
+        # selection_rate_threshold = (((max_selection_rate+min_selection_rate)/2)+avg_selection_rate)/2
+        selection_rate_threshold = metircs_df.selection_rate.mean()
+        metircs_df['sub_groups'] = (metircs_df.selection_rate > selection_rate_threshold) *1
 
-    rrcf_param_grid = {'num_trees': [100],
-                       'tree_size': [min(512, int(((X_train_df.shape[0]) * 0.8) / 2))]}
+        priv = tuple(metircs_df[metircs_df.sub_groups == 1].index.values)
+        unpriv = tuple(metircs_df[metircs_df.sub_groups == 0].index.values)
 
-    def dict_product(dicts):
-        return (dict(zip(dicts.keys(), x)) for x in itertools.product(*dicts.values()))
-
-    params_sets = []
-    models_params_grid = {'IF': if_param_grid, 'SVM': svm_param_grid, 'RC': rc_param_grid, 'LOF': lof_param_grid,
-                          'RRCF': rrcf_param_grid}
-
-    for model_name in models_params_grid:
-        for params_set in list(dict_product(models_params_grid[model_name])):
-            params_sets.append({model_name: params_set})
-
-    return params_sets
-
-def run_gridsearch_cv(base_clf_class:BaseClf,
-                      X_train:pd.DataFrame,
-                      y_train:pd.Series,
-                      sensitive_feature_name:str,
-                      sensitive_feature_srs:pd.Series,
-                      snsftr_slctrt_sub_groups:Tuple[Tuple,Tuple]):
-    # #################################################################################################################
-    # RepeatedStratifiedKFold params
-    n_splits = 5
-    n_repeats = 1
-    random_state = 42
-    # #################################################################################################################
-
-    # https://stackoverflow.com/questions/49017257/custom-scoring-on-gridsearchcv-with-fold-dependent-parameter
-    rskf = RepeatedStratifiedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=random_state)
-    grid_search_idx = {}
-    y_train = utils.to_int_srs(y_train)
-    X_train = utils.to_float_df(X_train)
-    for train_index, test_index in rskf.split(X_train, y_train):
-        grid_search_idx[hash(y_train[test_index].values.tobytes())] = np.copy(test_index)
-
-    def f2_measure(y_true:pd.Series, y_pred:np.ndarray) -> float:
-        return fbeta_score(utils.to_int_srs(y_true),
-                           utils.to_int_srs(pd.Series(y_pred)),
-                           beta=2, average='macro')
-
-    def f1_measure(y_true:pd.Series, y_pred:np.ndarray) -> float:
-        return f1_score(utils.to_int_srs(y_true),
-                        utils.to_int_srs(pd.Series(y_pred)),
-                        average='macro')
-
-    def eod_measure(y_true: pd.Series, y_pred: np.ndarray) -> float:
-        sensitive_selected_arr = sensitive_feature_srs.values[grid_search_idx[hash(y_true.values.tobytes())]]
-        try:
-            eod_score = equalized_odds_difference(utils.to_int_srs(y_true),
-                                                      utils.to_int_srs(pd.Series(y_pred)),
-                                                      sensitive_features=sensitive_selected_arr)
-        except BaseException as e:
-            print(
-                f"Exception raised due to insufficient values for some of the sub groups:\n{pd.Series(sensitive_selected_arr).value_counts()}")
-            eod_score = 10
-
-        # print(f'EOD Score:{eod_score}')
-        return eod_score
-
-    # def eod_measure(y_true:pd.Series, y_pred:np.ndarray) -> float:
-    #     sensitive_selected_arr = sensitive_feature_srs.values[grid_search_idx[hash(y_true.values.tobytes())]]
-    #     eod_score = abs(equalized_odds_difference(utils.to_int_srs(y_true),
-    #                                               utils.to_int_srs(pd.Series(y_pred)),
-    #                                               sensitive_features=sensitive_selected_arr))
-    #     print(f'EOD Score:{eod_score}')
-    #     return eod_score
-
-    estimator = pipe(steps=[
-        ('fairxgboost', FairXGBClassifier())])
-
-    # Define the parameter grid space
-    param_grid = {
-        'fairxgboost__base_clf_class':[base_clf_class],
-        'fairxgboost__anomalies_per_to_remove': [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4],  # 0.1,0.2 !!!!!!!!!!!!!!!!!!
-        'fairxgboost__include_sensitive_feature': [True, False],  # False
-        'fairxgboost__sensitive_col_name': [sensitive_feature_name],
-        'fairxgboost__remove_side': ['only_non_privilaged', 'only_privilaged', 'all'],
-        # 'only_privilaged'(A93,A94),'only_non_privilaged'(A91,A92),'all'
-        'fairxgboost__data_columns': [tuple(X_train.columns)],
-        'fairxgboost__anomaly_model_params': build_gridsearch_cv_params(X_train),  # global_params_sets !!!!!!!!!!!!!!!!!!!
-        'fairxgboost__snsftr_slctrt_sub_groups': [snsftr_slctrt_sub_groups],
-        'fairxgboost__verbose': [False],
-    }
-
-    #best standard metirics for imbalanced data is probably fbeta_<x> (f1 is the base case)
-    # https://neptune.ai/blog/f1-score-accuracy-roc-auc-pr-auc#2 <--- IMPORTANT REFERENCE !!!
-
-    # Initializethe CV object
-    # https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.GridSearchCV.html
-    # https://scikit-learn.org/stable/modules/grid_search.html#multimetric-grid-search
-    # https://scikit-learn.org/stable/auto_examples/model_selection/plot_multi_metric_evaluation.html
-    # https://datascience.stackexchange.com/questions/43793/how-to-get-mean-test-scores-from-gridsearchcv-with-multiple-scorers-scikit-lea
-    # https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.GridSearchCV.html
-    # https://hub.gke2.mybinder.org/user/scikit-learn-scikit-learn-s0vnxwm7/lab/tree/notebooks/auto_examples/model_selection/plot_learning_curve.ipynb
-    # https://hub.gke2.mybinder.org/user/scikit-learn-scikit-learn-s0vnxwm7/lab/tree/notebooks/auto_examples/model_selection/plot_roc.ipynb
-    pipe_cv = GridSearchCV(estimator=estimator,
-                           param_grid=param_grid,
-                           cv=rskf,
-                           scoring={'eod':make_scorer(eod_measure, greater_is_better=False),
-                                    'f1':make_scorer(f1_measure,greater_is_better=True),
-                                    'fbeta_2':make_scorer(f2_measure,greater_is_better=True)},
-                           refit = 'eod',#for multiple scorers specify the scorer string id (in the scorers dictionary) to use
-                           return_train_score = False,
-                           n_jobs=1)
-
-    t0 = datetime.now()
-    pipe_cv.fit(X_train, y_train)
+        return mf2.by_group, (unpriv,priv)
 
 
-    print('#' * 100)
-    print(f'Best Params:\n{pipe_cv.best_params_}')
-    print('#' * 100)
-    results = pd.DataFrame(pipe_cv.cv_results_)
-    datetime_tag = datetime.now().strftime("%y%m%d_%H%M%S")
-    results.to_csv(f'./gscv_results/{datetime_tag}.csv')
-    print(f'results:\n{results}')
-    # print(f'Predict on X_test:\n{pipe_cv.predict_proba(preprocessed_test_data)}')
-    # print('#'*100)
-    # print(f'Score:\n{pipe_cv.score(preprocessed_test_data, y_test)}')
-    # print('#'*100)
-    total_time_secs = datetime.now() -t0
-    print(f"Gridsearch_cv total run time: {total_time_secs}")
+    @staticmethod
+    def build_gridsearch_cv_params(X_train_df:pd.DataFrame):
+        if_param_grid = {'n_estimators': [100, 150],
+                         'max_samples': ['auto', 0.5],
+                         'contamination': ['auto'],
+                         'max_features': [10, 15],
+                         'bootstrap': [True],
+                         'n_jobs': [-1]}
 
-    return pipe_cv
+        svm_param_grid = {'kernel': ['rbf'],
+                          'gamma': ['auto', 1, 0.1, 0.01, 0.001, 0.0001]}
+
+        rc_param_grid = {'random_state': [42]}
+
+        lof_param_grid = {'n_neighbors': [10, 20, 30],
+                          'novelty': [True]}
+
+        rrcf_param_grid = {'num_trees': [100],
+                           'tree_size': [min(512, int(((X_train_df.shape[0]) * 0.8) / 2))]}
+
+        def dict_product(dicts):
+            return (dict(zip(dicts.keys(), x)) for x in itertools.product(*dicts.values()))
+
+        params_sets = []
+        models_params_grid = {'IF': if_param_grid, 'SVM': svm_param_grid, 'RC': rc_param_grid, 'LOF': lof_param_grid,
+                              'RRCF': rrcf_param_grid}
+
+        for model_name in models_params_grid:
+            for params_set in list(dict_product(models_params_grid[model_name])):
+                params_sets.append({model_name: params_set})
+
+        return params_sets
+
+    @staticmethod
+    def get_most_biased_sensitive_feature(data:pd.DataFrame,
+                                          fairness_metric:str,
+                                          base_clf:BaseClf,
+                                          config:Dict,
+                                          method:str='eod'):
+
+        assert method.lower() == 'eod', "currently only 'eod' method is supported"
+
+        sensitive_features_names = config['sensitive_features']
+        sensitive_features_eod_scores_dict = {}
+        for sf in sensitive_features_names:
+            config['sensitive_feature'] = sf
+
+            ppl, preprocessed_train_data, preprocessed_test_data, X_train, X_test, y_train, y_test = fair_ppl.run_fair_data_preprocess_pipeline(data.copy(), config)
+
+            if sf in X_train.columns and fair_ppl.is_categorial(X_train[sf]) == False:
+                print(f'sensitive feature {sf} is not categorical thus removed from sensitive features list')
+                sensitive_features_names.remove(sf)
+                continue
+
+            y_test = utils.to_int_srs(y_test)
+            X_test = utils.to_float_df(X_test)
+            xgb_clf, y_pred, y_pred_proba = base_clf.fit_predict(X_train=utils.to_float_df(X_train),
+                                                                                    y_train=utils.to_int_srs(y_train),
+                                                                                    X_test=X_test)
+
+
+            sensitive_features_eod_scores_dict.update(FairClassifier.get_fairness_score_for_sensitive_features(sensitive_features_names=[sf],
+                                                                                                               fairness_metric=fairness_metric,
+                                                                                                               y_true=y_test,
+                                                                                                               y_pred=pd.Series(y_pred),
+                                                                                                               data=X_test))
+
+        sensitive_features_eod_scores_df = pd.DataFrame.from_dict(sensitive_features_eod_scores_dict, orient='index', columns=['eod'])
+        sensitive_features_eod_scores_df = sensitive_features_eod_scores_df.sort_values(ascending=False, by=['eod'])
+        print(sensitive_features_eod_scores_df)
+
+        return sensitive_features_eod_scores_df.index[0].split(':')[0]
+
+    @staticmethod
+    def run_gridsearch_cv(base_clf:BaseClf,
+                          X_train:pd.DataFrame,
+                          y_train:pd.Series,
+                          target_fairness_metric:str,
+                          sensitive_feature_name:str,
+                          sensitive_feature_srs:pd.Series,
+                          snsftr_slctrt_sub_groups:Tuple[Tuple,Tuple]):
+
+        assert target_fairness_metric.lower() == 'eod', 'eod is currntly the only supported fairness metric'
+
+        # #################################################################################################################
+        # RepeatedStratifiedKFold params
+        n_splits = 5
+        n_repeats = 1
+        random_state = 42
+        verbose = True
+        # #################################################################################################################
+
+        # https://stackoverflow.com/questions/49017257/custom-scoring-on-gridsearchcv-with-fold-dependent-parameter
+        rskf = RepeatedStratifiedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=random_state)
+        grid_search_idx = {}
+        y_train = utils.to_int_srs(y_train)
+        X_train = utils.to_float_df(X_train)
+        for train_index, test_index in rskf.split(X_train, y_train):
+            grid_search_idx[hash(y_train[test_index].values.tobytes())] = np.copy(test_index)
+
+        def f2_measure(y_true:pd.Series, y_pred:np.ndarray) -> float:
+            score = fbeta_score(utils.to_int_srs(y_true),
+                               utils.to_int_srs(pd.Series(y_pred)),
+                               beta=2, average='macro')
+            if verbose:
+                print(f'f2 Score:{score}')
+
+            return score
+
+        def f1_measure(y_true:pd.Series, y_pred:np.ndarray) -> float:
+            score = f1_score(utils.to_int_srs(y_true),
+                            utils.to_int_srs(pd.Series(y_pred)),
+                            average='macro')
+            if verbose:
+                print(f'f1 Score:{score}')
+
+            return score
+
+
+        def eod_measure(y_true: pd.Series, y_pred: np.ndarray) -> float:
+            sensitive_selected_arr = sensitive_feature_srs.values[grid_search_idx[hash(y_true.values.tobytes())]]
+            try:
+                eod_score = equalized_odds_difference(utils.to_int_srs(y_true),
+                                                          utils.to_int_srs(pd.Series(y_pred)),
+                                                          sensitive_features=sensitive_selected_arr)
+            except BaseException as e:
+                print(
+                    f"Exception raised due to insufficient values for some of the sub groups:\n{pd.Series(sensitive_selected_arr).value_counts()}")
+                eod_score = 10
+
+            if verbose:
+                print(f'EOD Score:{eod_score}')
+            return eod_score
+
+        # def eod_measure(y_true:pd.Series, y_pred:np.ndarray) -> float:
+        #     sensitive_selected_arr = sensitive_feature_srs.values[grid_search_idx[hash(y_true.values.tobytes())]]
+        #     eod_score = abs(equalized_odds_difference(utils.to_int_srs(y_true),
+        #                                               utils.to_int_srs(pd.Series(y_pred)),
+        #                                               sensitive_features=sensitive_selected_arr))
+        #     print(f'EOD Score:{eod_score}')
+        #     return eod_score
+
+        estimator = pipe(steps=[
+            ('fairxgboost', FairXGBClassifier())])
+
+        # Define the parameter grid space
+        param_grid = {
+            'fairxgboost__base_clf':[base_clf],
+            'fairxgboost__anomalies_per_to_remove': [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4],  # 0.1,0.2 !!!!!!!!!!!!!!!!!!
+            'fairxgboost__include_sensitive_feature': [True, False],  # False
+            'fairxgboost__sensitive_col_name': [sensitive_feature_name],
+            'fairxgboost__remove_side': ['only_non_privilaged', 'only_privilaged', 'all'],
+            # 'only_privilaged'(A93,A94),'only_non_privilaged'(A91,A92),'all'
+            'fairxgboost__data_columns': [tuple(X_train.columns)],
+            'fairxgboost__anomaly_model_params': FairClassifier.build_gridsearch_cv_params(X_train),  # global_params_sets !!!!!!!!!!!!!!!!!!!
+            'fairxgboost__snsftr_slctrt_sub_groups': [snsftr_slctrt_sub_groups],
+            'fairxgboost__verbose': [verbose],
+        }
+
+        #best standard metirics for imbalanced data is probably fbeta_<x> (f1 is the base case)
+        # https://neptune.ai/blog/f1-score-accuracy-roc-auc-pr-auc#2 <--- IMPORTANT REFERENCE !!!
+
+        # Initializethe CV object
+        # https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.GridSearchCV.html
+        # https://scikit-learn.org/stable/modules/grid_search.html#multimetric-grid-search
+        # https://scikit-learn.org/stable/auto_examples/model_selection/plot_multi_metric_evaluation.html
+        # https://datascience.stackexchange.com/questions/43793/how-to-get-mean-test-scores-from-gridsearchcv-with-multiple-scorers-scikit-lea
+        # https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.GridSearchCV.html
+        # https://hub.gke2.mybinder.org/user/scikit-learn-scikit-learn-s0vnxwm7/lab/tree/notebooks/auto_examples/model_selection/plot_learning_curve.ipynb
+        # https://hub.gke2.mybinder.org/user/scikit-learn-scikit-learn-s0vnxwm7/lab/tree/notebooks/auto_examples/model_selection/plot_roc.ipynb
+
+        scorers_dict = {'eod':make_scorer(eod_measure, greater_is_better=False),
+                        'f1':make_scorer(f1_measure,greater_is_better=True),
+                        'fbeta_2':make_scorer(f2_measure,greater_is_better=True)}
+        refit = target_fairness_metric.lower()
+        assert refit in scorers_dict.keys(), f"gridsearch_cv's parameter 'refit' == '{target_fairness_metric}' (target_fairness_metric) and must be one of the scorrers names"
+
+        pipe_cv = GridSearchCV(estimator=estimator,
+                               param_grid=param_grid,
+                               cv=rskf,
+                               scoring=scorers_dict,
+                               refit = refit,#for multiple scorers specify the scorer string id (in the scorers dictionary) to use
+                               return_train_score = False,
+                               n_jobs=1)
+
+        t0 = datetime.now()
+        pipe_cv.fit(X_train, y_train)
+
+
+        print('#' * 100)
+        print(f'Best Params:\n{pipe_cv.best_params_}')
+        print('#' * 100)
+        results = pd.DataFrame(pipe_cv.cv_results_)
+        datetime_tag = datetime.now().strftime("%y%m%d_%H%M%S")
+        results.to_csv(f'./gscv_results/{datetime_tag}.csv')
+        print(f'results:\n{results}')
+        # print(f'Predict on X_test:\n{pipe_cv.predict_proba(preprocessed_test_data)}')
+        # print('#'*100)
+        # print(f'Score:\n{pipe_cv.score(preprocessed_test_data, y_test)}')
+        # print('#'*100)
+        total_time_secs = datetime.now() -t0
+        print(f"Gridsearch_cv total run time: {total_time_secs}")
+
+        return pipe_cv
 
 
 class FairXGBClassifier(ClassifierMixin, BaseEstimator):
@@ -303,12 +374,12 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
         The classes seen at :meth:`fit`.
     """
 
-    def __init__(self, base_clf_class:BaseClf=None, anomalies_per_to_remove=None, remove_side=None,
+    def __init__(self, base_clf:BaseClf=None, anomalies_per_to_remove=None, remove_side=None,
                  include_sensitive_feature=None, sensitive_col_name=None,
                  data_columns=None, anomaly_model_params=None, snsftr_slctrt_sub_groups=None,
-                 verbose=False, do_plots:bool=False):
+                 verbose=True, do_plots:bool=False):
 
-        self.base_clf_class = base_clf_class
+        self.base_clf = base_clf
         self.anomalies_per_to_remove = anomalies_per_to_remove
         self.include_sensitive_feature = include_sensitive_feature
         self.sensitive_col_name = sensitive_col_name
@@ -340,7 +411,7 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
 
     def get_params(self, deep=True):
         # suppose this estimator has parameters "alpha" and "recursive"
-        return {"base_clf_class": self.base_clf_class,
+        return {"base_clf": self.base_clf,
                 "anomalies_per_to_remove": self.anomalies_per_to_remove,
                 "include_sensitive_feature": self.include_sensitive_feature,
                 "sensitive_col_name": self.sensitive_col_name,
@@ -448,7 +519,7 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
 
         anomalies_idx = set(anomalies_idx)
         filter_sub_sensitive_group = []
-        sensitive_feature_col = get_feature_col_from_preprocessed_data(feature_name=self.sensitive_col_name,
+        sensitive_feature_col = FairClassifier.get_feature_col_from_preprocessed_data(feature_name=self.sensitive_col_name,
                                                                        data=self.data)
         # print(f'indexes before filtering sensitive: {anomalies_idx}')
         if self.remove_side == 'only_privilaged':
@@ -477,7 +548,7 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
             print(f'  Number of anomalies to be removed:{len(anomalies_idx_to_remove)}')
 
         # https: // xgboost.readthedocs.io / en / stable / python / python_api.html
-        self.model = self.base_clf_class.fit(X_train=self.data.drop(list(anomalies_idx_to_remove)),
+        self.model = self.base_clf.fit(X_train=self.data.drop(list(anomalies_idx_to_remove)),
                                                                 y_train=np.delete(self.y_, list(anomalies_idx_to_remove)))
 
 
@@ -501,13 +572,13 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
             The label for each sample is the label of the closest sample
             seen during fit.
         """
-        y_pred, y_pred_proba = self.base_clf_class.predict(clf= self.model,
+        y_pred, y_pred_proba = self.base_clf.predict(clf= self.model,
                                                             X = X)
 
         return y_pred
 
     def predict_proba(self, X):
-        y_predict, y_pred_proba = self.base_clf_class.predict(clf= self.model,
+        y_predict, y_pred_proba = self.base_clf.predict(clf= self.model,
                                                                 X = X)
         return y_pred_proba
 

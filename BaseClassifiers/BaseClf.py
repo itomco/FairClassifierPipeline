@@ -6,8 +6,8 @@ class BaseClf():
     @staticmethod
     def fit(X_train: pd.DataFrame,
             y_train: pd.Series,
-            X_test: pd.DataFrame,
-            y_test: pd.DataFrame
+            X_test: pd.DataFrame = None,
+            y_test: pd.DataFrame = None,
             ):
         pass
 
@@ -21,6 +21,10 @@ class BaseClf():
     def fit_predict(X_train:pd.DataFrame,
                     y_train:pd.Series,
                     X_test:pd.DataFrame,
-                    y_test: pd.Series
+                    y_test: pd.Series = None
                     ):
+        pass
+
+    @staticmethod
+    def run_baseline(data:pd.DataFrame, config:Dict):
         pass

@@ -119,7 +119,10 @@ class GermanBaseClf(BaseClf):
         model = XGBClassifier(**XGBClassifier_params)
         # print(f"model_.best_ntree_limit:{model_.best_ntree_limit}")
         model.set_params(**{'n_estimators': ntree_limit})
-        model.fit(X=X_train, y=y_train, eval_metric='logloss', verbose=False)
+        model.fit(X=X_train,
+                  y=y_train,
+                  eval_metric='logloss',
+                  verbose=False)
 
         return (model)
 
@@ -137,77 +140,66 @@ class GermanBaseClf(BaseClf):
 
         return (model, *GermanBaseClf.predict(clf=model, X=X_test))
 
-# Function to get roc curve
-def get_roc (y_test,y_pred):
-    '''fpr, tpr, roc_auc'''
-    # Compute ROC curve and ROC area for each class
-    fpr = dict()
-    tpr = dict()
-    roc_auc = dict()
-    fpr, tpr, _ = roc_curve(y_test, y_pred)
-    roc_auc = auc(fpr, tpr)
-    #Plot of a ROC curve
-    # plt.figure()
-    # lw = 2
-    # plt.plot(fpr, tpr, color='darkorange',
-    #          label='ROC curve (area = %0.2f)' % roc_auc)
-    # plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--')
-    # plt.xlim([0.0, 1.0])
-    # plt.ylim([0.0, 1.0])
-    # plt.xlabel('False Positive Rate')
-    # plt.ylabel('True Positive Rate')
-    # plt.title('Receiver operating characteristic')
-    # plt.legend(loc="upper left")
-    # plt.show()
-    return(fpr, tpr, roc_auc)
 
-def run_baseline_clf(data:pd.DataFrame):
-    data_baseline = data.copy()
-    # Binarize the y output for easier use of e.g. ROC curves -> 0 = 'bad' credit; 1 = 'good' credit
-    data_baseline.classification.replace([1, 2], [1, 0], inplace=True)
-    # Print number of 'good' credits (should be 700) and 'bad credits (should be 300)
-    # data_baseline.classification.value_counts()
+    @staticmethod
+    def run_baseline(data:pd.DataFrame, config:Dict):
+        '''
+        :param data: the raw data overwhich to run the baseline model
+        :return:
+        - X_train:pd.DataFrame - preprocessed
+        - Y_train:pd.Series - preprocessed
+        - X_test:pd.DataFrame - preprocessed
+        - y_test:pd.Series - preprocessed
+        - model:XGBClassifier - pre-trained XGBClassifier base model
+        - y_pred:pd.Series - pre-trainded model's predict result on X_test
+        - y_pred_proba:pd.Series - pre-trainded model's predict_proba result on X_test
+        '''
+        data_baseline = data.copy()
+        # Binarize the y output for easier use of e.g. ROC curves -> 0 = 'bad' credit; 1 = 'good' credit
+        data_baseline[config['label_col']].replace([1, 2], [1, 0], inplace=True)
+        # Print number of 'good' credits (should be 700) and 'bad credits (should be 300)
+        # data_baseline.classification.value_counts()
 
-    # numerical variables labels
-    numvars = ['creditamount', 'duration', 'installmentrate', 'residencesince', 'age',
-               'existingcredits', 'peopleliable', 'classification']
+        # numerical variables labels
+        numvars = ['creditamount', 'duration', 'installmentrate', 'residencesince', 'age',
+                   'existingcredits', 'peopleliable', 'classification']
 
-    # Standardization
-    # numdata_std = pd.DataFrame(StandardScaler().fit_transform(data_baseline[numvars].drop(['classification'], axis=1)))
+        # Standardization
+        # numdata_std = pd.DataFrame(StandardScaler().fit_transform(data_baseline[numvars].drop(['classification'], axis=1)))
 
-    # categorical variables labels
-    catvars = ['existingchecking', 'credithistory', 'purpose', 'savings', 'employmentsince',
-               'statussex', 'otherdebtors', 'property', 'otherinstallmentplans', 'housing', 'job',
-               'telephone', 'foreignworker']
+        # categorical variables labels
+        catvars = ['existingchecking', 'credithistory', 'purpose', 'savings', 'employmentsince',
+                   'statussex', 'otherdebtors', 'property', 'otherinstallmentplans', 'housing', 'job',
+                   'telephone', 'foreignworker']
 
-    # d = defaultdict(LabelEncoder)
+        # d = defaultdict(LabelEncoder)
 
-    # Encoding the variable
-    # lecatdata = data_baseline[catvars].apply(lambda x: d[x.name].fit_transform(x))
+        # Encoding the variable
+        # lecatdata = data_baseline[catvars].apply(lambda x: d[x.name].fit_transform(x))
 
-    # print transformations
-    # for x in range(len(catvars)):
-    #     print(catvars[x], ": ", data_baseline[catvars[x]].unique())
-    #     print(catvars[x], ": ", lecatdata[catvars[x]].unique())
+        # print transformations
+        # for x in range(len(catvars)):
+        #     print(catvars[x], ": ", data_baseline[catvars[x]].unique())
+        #     print(catvars[x], ": ", lecatdata[catvars[x]].unique())
 
-    # One hot encoding, create dummy variables for every category of every categorical variable
-    dummyvars = pd.get_dummies(data_baseline[catvars])
+        # One hot encoding, create dummy variables for every category of every categorical variable
+        dummyvars = pd.get_dummies(data_baseline[catvars])
 
-    data_baseline_clean = pd.concat([data_baseline[numvars], dummyvars], axis=1)
+        data_baseline_clean = pd.concat([data_baseline[numvars], dummyvars], axis=1)
 
-    # print(data_baseline_clean.shape)
+        # print(data_baseline_clean.shape)
 
-    # Unscaled, unnormalized data
-    X_baseline_clean = data_baseline_clean.drop('classification', axis=1)
-    y_baseline_clean = data_baseline_clean['classification']
+        # Unscaled, unnormalized data
+        X_baseline_clean = data_baseline_clean.drop(config['label_col'], axis=1)
+        y_baseline_clean = data_baseline_clean[config['label_col']]
 
-    X_baseline_train_clean, X_baseline_test_clean, y_baseline_train_clean, y_baseline_test_clean = train_test_split(
-        X_baseline_clean, y_baseline_clean, test_size=0.2, random_state=1)
+        X_baseline_train_clean, X_baseline_test_clean, y_baseline_train_clean, y_baseline_test_clean = train_test_split(
+            X_baseline_clean, y_baseline_clean, test_size=0.2, random_state=1)
 
 
-    return (X_baseline_test_clean,y_baseline_test_clean,
-            *GermanBaseClf.fit_predict(X_train=utils.to_float_df(X_baseline_train_clean),
-                                       y_train=utils.to_int_srs(y_baseline_train_clean),
-                                       X_test=utils.to_float_df(X_baseline_test_clean),
-                                       y_test= utils.to_int_srs(y_baseline_test_clean)))
+        return (X_baseline_train_clean, X_baseline_test_clean, y_baseline_train_clean,y_baseline_test_clean,
+                *GermanBaseClf.fit_predict(X_train=utils.to_float_df(X_baseline_train_clean),
+                                           y_train=utils.to_int_srs(y_baseline_train_clean),
+                                           X_test=utils.to_float_df(X_baseline_test_clean),
+                                           y_test= utils.to_int_srs(y_baseline_test_clean)))
 

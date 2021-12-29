@@ -1,0 +1,43 @@
+{
+    "sensitive_features": [
+        "age",
+        "job",
+        "marital"
+    ],
+    "label_col": "y",
+    "label_ordered_classes": [
+        [
+            "yes",
+            "no"
+        ],
+        [
+            1,
+            0
+        ]
+    ],
+    "numerical_str_features_stubs": {},
+    "ordinal_categorial_features": {
+        "month": [
+            "jan",
+            "feb",
+            "mar",
+            "apr",
+            "may",
+            "jun",
+            "jul",
+            "aug",
+            "sep",
+            "oct",
+            "nov",
+            "dec"
+        ]
+    },
+    "numeric_to_ord_cat": {
+        "age": [
+            30,
+            60
+        ]
+    },
+    "max_sparse_col_threshold": 0.8,
+    "data_path": "./Data/bank.csv"
+}

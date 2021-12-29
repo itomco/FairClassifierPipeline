@@ -1,0 +1,82 @@
+{
+    "sensitive_features": [
+        "statussex",
+        "age"
+    ],
+    "label_col": "classification",
+    "label_ordered_classes": [
+        [
+            1,
+            2
+        ],
+        [
+            1,
+            0
+        ]
+    ],
+    "numerical_str_features_stubs": {
+        "otherinstallmentplans": [
+            "A14",
+            null
+        ]
+    },
+    "ordinal_categorial_features": {
+        "existingchecking": [
+            "A14",
+            "A11",
+            "A12",
+            "A13"
+        ],
+        "credithistory": [
+            "A30",
+            "A31",
+            "A32",
+            "A33",
+            "A34"
+        ],
+        "savings": [
+            "A65",
+            "A61",
+            "A62",
+            "A63",
+            "A64"
+        ],
+        "employmentsince": [
+            "A71",
+            "A72",
+            "A73",
+            "A74",
+            "A75"
+        ],
+        "otherdebtors": [
+            "A101",
+            "A102",
+            "A103"
+        ],
+        "property": [
+            "A121",
+            "A122",
+            "A123",
+            "A124"
+        ],
+        "housing": [
+            "A151",
+            "A152",
+            "A153"
+        ],
+        "job": [
+            "A171",
+            "A172",
+            "A173",
+            "A174"
+        ]
+    },
+    "numeric_to_ord_cat": {
+        "age": [
+            25,
+            50
+        ]
+    },
+    "max_sparse_col_threshold": 0.8,
+    "data_path": "./Data/german.data"
+}

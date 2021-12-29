@@ -75,77 +75,32 @@ import itertools
 
 from FairClassifierPipeline import FairPipeline as fair_ppl
 from FairClassifierPipeline import Utils as utils
-from BaseClassifiers import BaseClf
-from BaseClassifiers import GermanCreditBaseClf as base_clf
-from BaseClassifiers.GermanCreditBaseClf import GermanBaseClf as base_clf_class
-from FairClassifierPipeline import FairClassifier as fair_clf
-
+from BaseClassifiers.BaseClf import BaseClf
+from BaseClassifiers import BaseClfCreator
+# from BaseClassifiers import GermanCreditBaseClf as base_clf
+# from BaseClassifiers.GermanCreditBaseClf import GermanBaseClf as base_clf_class
+from FairClassifierPipeline.FairClassifier import FairClassifier as fair_clf
+from Configs import Configurator as cfg
+from Data import DataLoader as data_loader
 # print(xgboost.__version__)
 
-def create_config() -> Dict:
-    config = {}
-    config['sensitive_features'] = ['statussex','age']
-    config['label_col'] = 'classification'
-    config['label_ordered_classes'] = ([1,2], [1,0]) #relevant for Fairness Positive Label Value
+create_config = False
+if create_config:
+    cfg.create_configs()
 
-    # numerical_str_features_stubs enable the following comfort generic settings:
-    # 1. in all cases where numerical value is sent as a string with or with out a prefix and / or a suffix, this would 'clean' this features values and convert to
-    #    int or float according to the actual column's value type
-    # 2. easier approach to define ordinal categorical features in case they are already properly ordered buy has some prefix and / or suffix to all values
-    config['numerical_str_features_stubs'] =    {
-                                                'otherinstallmentplans':('A14',None),
-                                                }
+def load_config(config_name:str) -> Dict:
+    with open(f'Configs/{config_name}.json', 'r', encoding='utf-8') as f:
+        config_reloaded = json.load(f)
+    return config_reloaded
 
-    # https://archive.ics.uci.edu/ml/datasets/statlog+(german+credit+data)
+def showcase_pipeline_impact_on_base_model(config:Dict,
+                                           fairness_metric:str,
+                                           base_clf:BaseClf,
+                                           base_X_test:pd.DataFrame,
+                                           base_y_test:pd.Series,
+                                           base_y_pred:pd.Series
+                                           ):
 
-    # https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.OrdinalEncoder.html#
-    config['ordinal_categorial_features'] = {
-                                            'existingchecking':['A14','A11', 'A12', 'A13'],
-                                            'credithistory':['A30','A31','A32','A33','A34'],
-                                            'savings':['A65','A61','A62','A63','A64'],
-                                            'employmentsince':['A71','A72','A73','A74','A75'],
-                                            # 'installmentrate':[1,2,3,4],#8
-                                            'otherdebtors':['A101','A102','A103'],
-                                            # 'residencesince':[1,2,3,4],#11
-                                            'property':['A121','A122','A123','A124'],
-                                            # 'otherinstallmentplans':['A141','A142','A143'],
-                                            'housing':['A151','A152','A153'],
-                                            # 'existingcredits':[1,2,3,4],#16
-                                            'job':['A171','A172','A173','A174'],
-                                            # 'peopleliable':[1,2],#18
-                                            }
-
-    config['numeric_to_ord_cat'] = {'age':[25,50]}
-
-    config['max_sparse_col_threshold'] = 0.8
-
-    return config
-
-def load_data():
-    names = ['existingchecking', 'duration', 'credithistory', 'purpose', 'creditamount',
-             'savings', 'employmentsince', 'installmentrate', 'statussex', 'otherdebtors',
-             'residencesince', 'property', 'age', 'otherinstallmentplans', 'housing',
-             'existingcredits', 'job', 'peopleliable', 'telephone', 'foreignworker', 'classification']
-
-    return pd.read_csv('./Data/german.data', names=names, delimiter=' ')
-
-if __name__ == '__main__':
-    ####-1. Load data
-    data = load_data()
-    # print(data.head())
-
-    ####-2. Execute Baseline XGBoost Classifier
-    base_X_test, base_y_test, base_model, base_y_pred, base_y_pred_proba = base_clf.run_baseline_clf(data.copy())
-    base_fpr, base_tpr, base_auc = base_clf.get_roc(y_test=base_y_test,
-                                                    y_pred=base_y_pred)
-
-    print(f"Base model AUC: {base_auc}")
-    utils.print_confusion_matrix(base_y_test,base_y_pred, base_y_pred_proba)
-
-    ####-3. Check fair pipeline impact on base model
-
-    ####Run the Data PreProcessing Pipeline on Train Dataset
-    config = create_config()
     sensitive_features_names = config['sensitive_features']
     snsftr_eods_w_base_preprocess = {}
     snsftr_eods_w_fair_pipeline = {}
@@ -156,20 +111,20 @@ if __name__ == '__main__':
         if sf in base_X_test.columns and fair_ppl.is_categorial(base_X_test[sf]) == False:
             continue
 
-        config = create_config()
         config['sensitive_feature'] = sf
 
         #base model
-        snsftr_eods_w_base_preprocess.update(fair_clf.get_eod_for_sensitive_features(sensitive_features_names= [sf],
-                                                                                y_true=base_y_test,
-                                                                                y_pred=pd.Series(base_y_pred),
-                                                                                data=base_X_test))
+        snsftr_eods_w_base_preprocess.update(fair_clf.get_fairness_score_for_sensitive_features(sensitive_features_names= [sf],
+                                                                                                fairness_metric=fairness_metric,
+                                                                                                y_true=base_y_test,
+                                                                                                y_pred=pd.Series(base_y_pred),
+                                                                                                data=base_X_test))
 
         clsf_rprt = classification_report(base_y_test, pd.Series(base_y_pred), digits=4, output_dict=True)
-        snsftr_f1_w_base_preprocess.update({'accuracy':clsf_rprt['accuracy'],
-                                            'precision':clsf_rprt['macro avg']['precision'],
-                                            'recall':clsf_rprt['macro avg']['recall'],
-                                            'f1-score':clsf_rprt['macro avg']['f1-score']})
+        snsftr_f1_w_base_preprocess.update({f'{sf}:accuracy':clsf_rprt['accuracy'],
+                                            f'{sf}:precision':clsf_rprt['macro avg']['precision'],
+                                            f'{sf}:recall':clsf_rprt['macro avg']['recall'],
+                                            f'{sf}:f1-score':clsf_rprt['macro avg']['f1-score']})
 
 
 
@@ -183,26 +138,27 @@ if __name__ == '__main__':
 
         #### Execute Baseline XGBoost Classifier over fairly preprocessed data
         initial_y_test = utils.to_int_srs(initial_y_test)
-        initial_model, initial_y_pred, initial_y_pred_proba = base_clf_class.fit_predict(X_train= utils.to_float_df(initial_X_train),
-                                                                                                      y_train= utils.to_int_srs(initial_y_train),
-                                                                                                      X_test= utils.to_float_df(initial_X_test))
+        initial_model, initial_y_pred, initial_y_pred_proba = base_clf.fit_predict(X_train= utils.to_float_df(initial_X_train),
+                                                                                  y_train= utils.to_int_srs(initial_y_train),
+                                                                                  X_test= utils.to_float_df(initial_X_test))
 
-        initial_fpr, initial_tpr, initial_auc = base_clf.get_roc(y_test= initial_y_test,
+        initial_fpr, initial_tpr, initial_auc = utils.get_roc(y_test= initial_y_test,
                                                                  y_pred= initial_y_pred)
 
         print(f"Initial model AUC: {initial_auc}")
         utils.print_confusion_matrix(utils.to_int_srs(initial_y_test),initial_y_pred, initial_y_pred_proba)
 
-        snsftr_eods_w_fair_pipeline.update(fair_clf.get_eod_for_sensitive_features(sensitive_features_names = [sf],
-                                                                              y_true=initial_y_test,
-                                                                              y_pred=pd.Series(initial_y_pred),
-                                                                              data=initial_X_test))
+        snsftr_eods_w_fair_pipeline.update(fair_clf.get_fairness_score_for_sensitive_features(sensitive_features_names = [sf],
+                                                                                              fairness_metric=fairness_metric,
+                                                                                              y_true=initial_y_test,
+                                                                                              y_pred=pd.Series(initial_y_pred),
+                                                                                              data=initial_X_test))
 
         clsf_rprt = classification_report(initial_y_test, pd.Series(initial_y_pred), digits=4, output_dict=True)
-        snsftr_f1_w_fair_pipeline.update({'accuracy':clsf_rprt['accuracy'],
-                                          'precision':clsf_rprt['macro avg']['precision'],
-                                          'recall':clsf_rprt['macro avg']['recall'],
-                                          'f1-score':clsf_rprt['macro avg']['f1-score']})
+        snsftr_f1_w_fair_pipeline.update({f'{sf}:accuracy':clsf_rprt['accuracy'],
+                                          f'{sf}:precision':clsf_rprt['macro avg']['precision'],
+                                          f'{sf}:recall':clsf_rprt['macro avg']['recall'],
+                                          f'{sf}:f1-score':clsf_rprt['macro avg']['f1-score']})
 
 
     base_vs_initial_eod_results = pd.DataFrame([snsftr_eods_w_base_preprocess,
@@ -213,43 +169,52 @@ if __name__ == '__main__':
 
     base_vs_initial_eod_results.columns = ['base','initial']
     base_vs_initial_macro_avg_cf_resuls.columns = ['base','initial']
-    print(pd.concat([base_vs_initial_eod_results,base_vs_initial_macro_avg_cf_resuls],axis=0))
+    print(f"Base model vs Initial Model for sensitive feature '{sf}':\n{pd.concat([base_vs_initial_eod_results,base_vs_initial_macro_avg_cf_resuls],axis=0)}")
+    # a = 1
+
+if __name__ == '__main__':
+    project_mode = 'bank'
+    fairness_metric = 'EOD' #todo: change to 'AOD'
+
+    ####-0 select config
+    config = load_config(config_name=project_mode)
+
+    ####-1. Load data
+    data = data_loader.load_data(project_mode=project_mode, data_path=config['data_path'])
+    print(data.head(3))
+
+    ####-2. Execute Baseline XGBoost Classifier
+    base_clf:BaseClf = BaseClfCreator.create_base_clf(project_mode=project_mode)
+    base_X_train, base_X_test, base_y_train, base_y_test, base_model, base_y_pred, base_y_pred_proba = \
+                                                                base_clf.run_baseline(data=data.copy(),
+                                                                                      config=config)
+
+    base_fpr, base_tpr, base_auc = utils.get_roc(y_test=base_y_test,
+                                                    y_pred=base_y_pred)
+
+    print(f"Base model AUC: {base_auc}")
+    utils.print_confusion_matrix(base_y_test,base_y_pred, base_y_pred_proba)
+
+    ####-3. Check fair pipeline impact on base model
+    showcase_pipeline_impact_on_base_model(config=config,
+                                           fairness_metric = fairness_metric,
+                                           base_clf=base_clf,
+                                           base_X_test=base_X_test,
+                                           base_y_test=base_y_test,
+                                           base_y_pred=base_y_pred)
 
     ####-4. search for most fairness biased sensitive feature
-    sensitive_features_eod_scores_dict = {}
-    for sf in sensitive_features_names:
-        config = create_config()
-        config['sensitive_feature'] = sf
+    sensitive_feature = fair_clf.get_most_biased_sensitive_feature(data=data,
+                                                                   fairness_metric=fairness_metric,
+                                                                   base_clf=base_clf,
+                                                                   config=config,
+                                                                   method=fairness_metric)
 
-        ppl, preprocessed_train_data, preprocessed_test_data, X_train, X_test, y_train, y_test = fair_ppl.run_fair_data_preprocess_pipeline(data.copy(), config)
-
-        if sf in X_train.columns and fair_ppl.is_categorial(X_train[sf]) == False:
-            print(f'sensitive feature {sf} is not categorical thus removed from sensitive features list')
-            sensitive_features_names.remove(sf)
-            continue
-
-        y_test = utils.to_int_srs(y_test)
-        X_test = utils.to_float_df(X_test)
-        xgb_clf, y_pred, y_pred_proba = base_clf_class.fit_predict(X_train=utils.to_float_df(X_train),
-                                                                                y_train=utils.to_int_srs(y_train),
-                                                                                X_test=X_test)
-
-
-        sensitive_features_eod_scores_dict.update(fair_clf.get_eod_for_sensitive_features(sensitive_features_names=[sf],
-                                                                                     y_true=y_test,
-                                                                                     y_pred=pd.Series(y_pred),
-                                                                                     data=X_test))
-
-    sensitive_features_eod_scores_df = pd.DataFrame.from_dict(sensitive_features_eod_scores_dict, orient='index', columns=['eod'])
-    sensitive_features_eod_scores_df = sensitive_features_eod_scores_df.sort_values(ascending=False, by=['eod'])
-    print(sensitive_features_eod_scores_df)
-
-    sensitive_feature = sensitive_features_eod_scores_df.index[0].split('_')[1]
-
+    print(f"Sensitive feature with highest un-fair bias based on fairness metric '{fairness_metric}' is: {sensitive_feature} ")
 
 
     ####-5. find privileged and unprivileged groups in sensitive feature
-    config = create_config()
+    config = load_config(config_name=project_mode)
     config['sensitive_feature'] = sensitive_feature
 
     ppl, preprocessed_train_data, preprocessed_test_data, X_train, X_test, y_train, y_test = \
@@ -257,12 +222,11 @@ if __name__ == '__main__':
 
     X_train = utils.to_float_df(X_train)
     y_train = utils.to_int_srs(y_train)
-    xgb_clf = base_clf_class.fit(X_train=X_train,
-                                                y_train=y_train,
-                                                X_test=utils.to_float_df(X_test),
-                                                y_test=utils.to_int_srs(y_test))
+    xgb_clf = base_clf.fit(X_train=X_train,
+                            y_train=y_train,
+                            X_test=utils.to_float_df(X_test))
 
-    y_pred, y_pred_proba = base_clf_class.predict(clf=xgb_clf,
+    y_pred, y_pred_proba = base_clf.predict(clf=xgb_clf,
                                                   X=X_train)
 
     sensitive_feature_srs = fair_clf.get_feature_col_from_preprocessed_data(feature_name=sensitive_feature,
@@ -275,9 +239,10 @@ if __name__ == '__main__':
 
 
     ####-6. run gridsearch_cv with anomaly samples removal
-    gridsearch_cv = fair_clf.run_gridsearch_cv(base_clf_class=base_clf_class,
+    gridsearch_cv = fair_clf.run_gridsearch_cv(base_clf=base_clf,
                                                X_train = X_train,
                                                y_train = y_train,
+                                               target_fairness_metric = fairness_metric,
                                                sensitive_feature_name = sensitive_feature,
                                                sensitive_feature_srs = sensitive_feature_srs,
                                                snsftr_slctrt_sub_groups = snsftr_slctrt_sub_groups)

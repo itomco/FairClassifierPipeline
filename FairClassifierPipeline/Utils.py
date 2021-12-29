@@ -71,9 +71,11 @@ from fairlearn.metrics import (
 )
 import itertools
 def to_int_srs(series:pd.Series) -> pd.Series:
+    assert isinstance(series,pd.Series), 'df must be of type pd.DataFrame'
     return pd.Series(np.array(series.values,dtype=int))
 
 def to_float_df(df:pd.DataFrame) -> pd.DataFrame:
+    assert isinstance(df,pd.DataFrame), 'df must be of type pd.DataFrame'
     return df.astype(float)
 
 def print_confusion_matrix(test_labels, test_pred, y_pred_proba = None, do_plot:bool=False):
@@ -102,3 +104,27 @@ def print_confusion_matrix(test_labels, test_pred, y_pred_proba = None, do_plot:
 
         ax.xaxis.set_ticklabels([False, True])
         ax.yaxis.set_ticklabels([False, True])
+
+# Function to get roc curve
+def get_roc (y_test,y_pred):
+    '''fpr, tpr, roc_auc'''
+    # Compute ROC curve and ROC area for each class
+    fpr = dict()
+    tpr = dict()
+    roc_auc = dict()
+    fpr, tpr, _ = roc_curve(y_test, y_pred)
+    roc_auc = auc(fpr, tpr)
+    #Plot of a ROC curve
+    # plt.figure()
+    # lw = 2
+    # plt.plot(fpr, tpr, color='darkorange',
+    #          label='ROC curve (area = %0.2f)' % roc_auc)
+    # plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--')
+    # plt.xlim([0.0, 1.0])
+    # plt.ylim([0.0, 1.0])
+    # plt.xlabel('False Positive Rate')
+    # plt.ylabel('True Positive Rate')
+    # plt.title('Receiver operating characteristic')
+    # plt.legend(loc="upper left")
+    # plt.show()
+    return(fpr, tpr, roc_auc)
