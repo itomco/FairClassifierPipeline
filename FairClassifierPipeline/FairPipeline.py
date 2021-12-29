@@ -781,14 +781,14 @@ def run_fair_data_preprocess_pipeline(data:pd.DataFrame, config:Dict, stratify_m
     data = data.copy()
     # data['stratify_col'] = [str(lbl)+str(sstv) for lbl, sstv in zip(data[config['label_col']],data[config['sensitive_feature']])]
     if stratify_mode == 'full':
-        data['bamba_col'] = data[config['label_col']].astype(str) + data[config['sensitive_feature']].astype(str)
+        data['stratify_col'] = data[config['label_col']].astype(str) + data[config['sensitive_feature']].astype(str)
         try:
-            train_df, test_df = train_test_split(data, test_size=0.2,random_state=1, stratify=data['bamba_col'])
+            train_df, test_df = train_test_split(data, test_size=0.2,random_state=1, stratify=data['stratify_col'])
         except BaseException as e:
             train_df, test_df = train_test_split(data, test_size=0.2,random_state=1, stratify=data[config['label_col']])
 
-        train_df.drop(columns=['bamba_col'],inplace=True)
-        test_df.drop(columns=['bamba_col'],inplace=True)
+        train_df.drop(columns=['stratify_col'],inplace=True)
+        test_df.drop(columns=['stratify_col'],inplace=True)
     elif stratify_mode == 'sensitive_feature':
         try:
             train_df, test_df = train_test_split(data, test_size=0.2,random_state=1, stratify=data['sensitive_feature'])

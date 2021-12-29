@@ -205,13 +205,27 @@ def run_gridsearch_cv(base_clf_class:BaseClf,
                         utils.to_int_srs(pd.Series(y_pred)),
                         average='macro')
 
-    def eod_measure(y_true:pd.Series, y_pred:np.ndarray) -> float:
+    def eod_measure(y_true: pd.Series, y_pred: np.ndarray) -> float:
         sensitive_selected_arr = sensitive_feature_srs.values[grid_search_idx[hash(y_true.values.tobytes())]]
-        eod_score = abs(equalized_odds_difference(utils.to_int_srs(y_true),
-                                                  utils.to_int_srs(pd.Series(y_pred)),
-                                                  sensitive_features=sensitive_selected_arr))
+        try:
+            eod_score = abs(equalized_odds_difference(utils.to_int_srs(y_true),
+                                                      utils.to_int_srs(pd.Series(y_pred)),
+                                                      sensitive_features=sensitive_selected_arr))
+        except BaseException as e:
+            print(
+                f"Exception raised due to insufficient values for some of the sub groups:\n{pd.Series(sensitive_selected_arr).value_counts()}")
+            eod_score = 1
+
         print(f'EOD Score:{eod_score}')
         return eod_score
+
+    # def eod_measure(y_true:pd.Series, y_pred:np.ndarray) -> float:
+    #     sensitive_selected_arr = sensitive_feature_srs.values[grid_search_idx[hash(y_true.values.tobytes())]]
+    #     eod_score = abs(equalized_odds_difference(utils.to_int_srs(y_true),
+    #                                               utils.to_int_srs(pd.Series(y_pred)),
+    #                                               sensitive_features=sensitive_selected_arr))
+    #     print(f'EOD Score:{eod_score}')
+    #     return eod_score
 
     estimator = pipe(steps=[
         ('fairxgboost', FairXGBClassifier())])
@@ -251,7 +265,10 @@ def run_gridsearch_cv(base_clf_class:BaseClf,
                            return_train_score = False,
                            n_jobs=1)
 
+    t0 = datetime.datetime.now()
     pipe_cv.fit(X_train, y_train)
+    total_time_secs = datetime.datetime.now()
+    print(f"Gridsearch_cv total run time: {total_time_secs}")
 
     print('#' * 100)
     print(f'Best Params:\n{pipe_cv.best_params_}')
