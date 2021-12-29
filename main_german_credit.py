@@ -185,8 +185,7 @@ if __name__ == '__main__':
         initial_y_test = utils.to_int_srs(initial_y_test)
         initial_model, initial_y_pred, initial_y_pred_proba = base_clf_class.fit_predict(X_train= utils.to_float_df(initial_X_train),
                                                                                                       y_train= utils.to_int_srs(initial_y_train),
-                                                                                                      X_test= utils.to_float_df(initial_X_test),
-                                                                                                      y_test= initial_y_test)
+                                                                                                      X_test= utils.to_float_df(initial_X_test))
 
         initial_fpr, initial_tpr, initial_auc = base_clf.get_roc(y_test= initial_y_test,
                                                                  y_pred= initial_y_pred)
@@ -233,8 +232,7 @@ if __name__ == '__main__':
         X_test = utils.to_float_df(X_test)
         xgb_clf, y_pred, y_pred_proba = base_clf_class.fit_predict(X_train=utils.to_float_df(X_train),
                                                                                 y_train=utils.to_int_srs(y_train),
-                                                                                X_test=X_test,
-                                                                                y_test=y_test)
+                                                                                X_test=X_test)
 
 
         sensitive_features_eod_scores_dict.update(fair_clf.get_eod_for_sensitive_features(sensitive_features_names=[sf],
