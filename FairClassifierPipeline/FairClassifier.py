@@ -273,7 +273,7 @@ def run_gridsearch_cv(base_clf_class:BaseClf,
     print(f'Best Params:\n{pipe_cv.best_params_}')
     print('#' * 100)
     results = pd.DataFrame(pipe_cv.cv_results_)
-    datetime_tag = datetime.now.strftime("%y%m%d-%H%M%S")
+    datetime_tag = datetime.now().strftime("%y%m%d_%H%M%S")
     results.to_csv(f'./gscv_results/{datetime_tag}.csv')
     print(f'results:\n{results}')
     # print(f'Predict on X_test:\n{pipe_cv.predict_proba(preprocessed_test_data)}')
