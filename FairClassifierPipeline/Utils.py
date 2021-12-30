@@ -71,7 +71,7 @@ from fairlearn.metrics import (
 )
 import itertools
 def to_int_srs(series:pd.Series) -> pd.Series:
-    assert isinstance(series,pd.Series), 'df must be of type pd.DataFrame'
+    assert isinstance(series,pd.Series), 'df must be of type pd.Series'
     return pd.Series(np.array(series.values,dtype=int))
 
 def to_float_df(df:pd.DataFrame) -> pd.DataFrame:

@@ -74,6 +74,7 @@ import itertools
 
 from BaseClassifiers.BaseClf import BaseClf
 from FairClassifierPipeline import Utils as utils
+from FairClassifierPipeline import FairPipeline as fair_ppl
 
 class GermanBaseClf(BaseClf):
     @staticmethod
@@ -190,11 +191,19 @@ class GermanBaseClf(BaseClf):
         # print(data_baseline_clean.shape)
 
         # Unscaled, unnormalized data
-        X_baseline_clean = data_baseline_clean.drop(config['label_col'], axis=1)
-        y_baseline_clean = data_baseline_clean[config['label_col']]
 
-        X_baseline_train_clean, X_baseline_test_clean, y_baseline_train_clean, y_baseline_test_clean = train_test_split(
-            X_baseline_clean, y_baseline_clean, test_size=0.2, random_state=1)
+        #create common train,. test split
+        X_train, X_test = fair_ppl.split_data(data=data_baseline_clean,
+                                                config=config)
+
+        X_baseline_train_clean = X_train.drop(config['label_col'], axis=1)
+        y_baseline_train_clean = X_train[config['label_col']]
+
+        X_baseline_test_clean = X_test.drop(config['label_col'], axis=1)
+        y_baseline_test_clean = X_test[config['label_col']]
+
+        # X_baseline_train_clean, X_baseline_test_clean, y_baseline_train_clean, y_baseline_test_clean = train_test_split(
+        #     X_baseline_clean, y_baseline_clean, test_size=0.2, random_state=1)
 
 
         return (X_baseline_train_clean, X_baseline_test_clean, y_baseline_train_clean,y_baseline_test_clean,

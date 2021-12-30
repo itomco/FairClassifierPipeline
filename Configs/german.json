@@ -1,7 +1,6 @@
 {
     "sensitive_features": [
-        "statussex",
-        "age"
+        "statussex"
     ],
     "label_col": "classification",
     "label_ordered_classes": [

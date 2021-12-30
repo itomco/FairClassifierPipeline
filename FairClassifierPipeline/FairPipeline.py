@@ -71,7 +71,7 @@ from fairlearn.metrics import (
     equalized_odds_difference
 )
 import itertools
-
+from FairClassifierPipeline.FairClassifier import FairClassifier as fair_clf
 
 
 ################# Types handling functions ###########################
@@ -771,17 +771,20 @@ def get_pipeline_final_columns(ppl):
 
     return final_columns
 
-
-
-
-def run_fair_data_preprocess_pipeline(data:pd.DataFrame, config:Dict, stratify_mode:str='no_stratify'):
+def split_data(data:pd.DataFrame, config:Dict, stratify_mode:str='full'):
     assert stratify_mode in ['no_stratify', 'full', 'sensitive_feature', 'label'], \
         "stratify_mode value must be one of the folowing options: ['no_stratify', 'all', 'sensitive_feature', 'label']"
 
     data = data.copy()
+
+    sensitive_feature_col = None
+    if stratify_mode in ['sensitive_feature','full']:
+        sensitive_feature_col = fair_clf.get_feature_col_from_preprocessed_data(feature_name=config['sensitive_feature'],
+                                                                            data=data)
+
     # data['stratify_col'] = [str(lbl)+str(sstv) for lbl, sstv in zip(data[config['label_col']],data[config['sensitive_feature']])]
     if stratify_mode == 'full':
-        data['stratify_col'] = data[config['label_col']].astype(str) + data[config['sensitive_feature']].astype(str)
+        data['stratify_col'] = data[config['label_col']].astype(str) + sensitive_feature_col.astype(str)
         try:
             train_df, test_df = train_test_split(data, test_size=0.2,random_state=1, stratify=data['stratify_col'])
         except BaseException as e:
@@ -791,7 +794,7 @@ def run_fair_data_preprocess_pipeline(data:pd.DataFrame, config:Dict, stratify_m
         test_df.drop(columns=['stratify_col'],inplace=True)
     elif stratify_mode == 'sensitive_feature':
         try:
-            train_df, test_df = train_test_split(data, test_size=0.2,random_state=1, stratify=data['sensitive_feature'])
+            train_df, test_df = train_test_split(data, test_size=0.2,random_state=1, stratify=sensitive_feature_col)
         except BaseException as e:
             train_df, test_df = train_test_split(data, test_size=0.2,random_state=1)
     elif stratify_mode == 'label':
@@ -799,9 +802,15 @@ def run_fair_data_preprocess_pipeline(data:pd.DataFrame, config:Dict, stratify_m
     else:
         train_df, test_df = train_test_split(data, test_size=0.2, random_state=1)
 
+    return(train_df, test_df)
 
+
+def run_fair_data_preprocess_pipeline(data:pd.DataFrame, config:Dict):
     ppl = create_pipeline(config)
     # categorical_numerical_preprocessor.fit_transform(X_train, y_train)
+    train_df, test_df = split_data( data=data,
+                                    config=config)
+
     preprocessed_train_data = ppl.fit_transform(train_df)
     final_columns = get_pipeline_final_columns(ppl)
 

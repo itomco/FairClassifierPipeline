@@ -3,7 +3,7 @@ from typing import *
 
 def create_german_config(config_name:str='german'):
     config = {}
-    config['sensitive_features'] = ['statussex','age']
+    config['sensitive_features'] = ['statussex']
     config['label_col'] = 'classification'
     config['label_ordered_classes'] = ([1,2], [1,0]) #relevant for Fairness Positive Label Value
 
