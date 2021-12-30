@@ -43,7 +43,7 @@ def create_german_config(config_name:str='german'):
 
 def create_bank_config(config_name:str='bank'):
     config = {}
-    config['sensitive_features'] = ["age","job","marital"]
+    config['sensitive_features'] = ["age","marital"]
     config['label_col'] = 'y'
     config['label_ordered_classes'] = (['yes', 'no'], [1, 0])  # relevant for Fairness Positive Label Value
 

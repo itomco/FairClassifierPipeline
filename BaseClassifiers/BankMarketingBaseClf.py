@@ -92,7 +92,7 @@ class BankBaseClf(BaseClf):
             X_test:pd.DataFrame = None,
             y_test:pd.Series = None
             ):
-        model = XGBClassifier()
+        model = XGBClassifier(use_label_encoder=False)
         model.fit(X=X_train,
                   y=y_train,
                   eval_metric='logloss',
@@ -138,8 +138,8 @@ class BankBaseClf(BaseClf):
         # Spliting data as X -> features and y -> class variable
         data_y = pd.DataFrame(data_new[config['label_col']])
         data_X = data_new.drop([config['label_col']], axis=1)
-        print(data_X.columns)
-        print(data_y.columns)
+        # print(data_X.columns)
+        # print(data_y.columns)
 
         # Dividing records in training and testing sets along with its shape (rows, cols)
         X_train, X_test, y_train, y_test = train_test_split(data_X, data_y, test_size=0.3, random_state=2, stratify=data_y)

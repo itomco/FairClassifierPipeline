@@ -1,7 +1,6 @@
 {
     "sensitive_features": [
         "age",
-        "job",
         "marital"
     ],
     "label_col": "y",
