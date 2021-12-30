@@ -231,7 +231,8 @@ class FairClassifier:
                           target_fairness_metric:str,
                           sensitive_feature_name:str,
                           sensitive_feature_srs:pd.Series,
-                          snsftr_slctrt_sub_groups:Tuple[Tuple,Tuple]):
+                          snsftr_slctrt_sub_groups:Tuple[Tuple,Tuple],
+                          verbose=False):
 
         assert target_fairness_metric.lower() == 'eod', 'eod is currntly the only supported fairness metric'
 
@@ -239,8 +240,7 @@ class FairClassifier:
         # RepeatedStratifiedKFold params
         n_splits = 5
         n_repeats = 1
-        random_state = 42
-        verbose = True
+        random_state = 42 #todo: test other random states for RepeatedStratifiedKFold
         # #################################################################################################################
 
         # https://stackoverflow.com/questions/49017257/custom-scoring-on-gridsearchcv-with-fold-dependent-parameter
@@ -337,22 +337,22 @@ class FairClassifier:
                                n_jobs=1)
 
         t0 = datetime.now()
+
         pipe_cv.fit(X_train, y_train)
 
-
-        print('#' * 100)
-        print(f'Best Params:\n{pipe_cv.best_params_}')
-        print('#' * 100)
-        results = pd.DataFrame(pipe_cv.cv_results_)
-        datetime_tag = datetime.now().strftime("%y%m%d_%H%M%S")
-        results.to_csv(f'./gscv_results/{datetime_tag}.csv')
-        print(f'results:\n{results}')
-        # print(f'Predict on X_test:\n{pipe_cv.predict_proba(preprocessed_test_data)}')
-        # print('#'*100)
-        # print(f'Score:\n{pipe_cv.score(preprocessed_test_data, y_test)}')
-        # print('#'*100)
         total_time_secs = datetime.now() -t0
         print(f"Gridsearch_cv total run time: {total_time_secs}")
+
+        if verbose:
+            print('#' * 100)
+            print(f'Gridsearch_cv Best Params:\n{pipe_cv.best_params_}')
+            print('#' * 100)
+
+            # print(f'Predict on X_test:\n{pipe_cv.predict_proba(preprocessed_test_data)}')
+            # print('#'*100)
+            # print(f'Score:\n{pipe_cv.score(preprocessed_test_data, y_test)}')
+            # print('#'*100)
+
 
         return pipe_cv
 

@@ -8,7 +8,7 @@ import numpy as np
 import sklearn
 from typing import *
 from collections import OrderedDict
-
+from datetime import datetime
 #
 # %matplotlib inline
 # import matplotlib.pyplot as plt
@@ -172,79 +172,84 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
     print(f"Base model vs Initial Model for sensitive feature '{sf}':\n{pd.concat([base_vs_initial_eod_results,base_vs_initial_macro_avg_cf_resuls],axis=0)}")
 
 if __name__ == '__main__':
-    project_mode = 'german' # select 'bank' or 'german'
     fairness_metric = 'EOD' #todo: add 'AOD' metric support and change the 'fairness_metric' to use in the project to be 'AOD'
+    for project_mode in ['bank','german']:
+        # project_mode = 'german' # select 'bank' or 'german'
 
-    ####-0 select config
-    config = load_config(config_name=project_mode)
+        ####-0 select config
+        config = load_config(config_name=project_mode)
 
-    ####-1. Load data
-    data = data_loader.load_data(project_mode=project_mode, data_path=config['data_path'])
-    print(data.head(3))
+        ####-1. Load data
+        data = data_loader.load_data(project_mode=project_mode, data_path=config['data_path'])
+        print(data.head(3))
 
-    ####-2. Execute Baseline XGBoost Classifier
-    base_clf:BaseClf = BaseClfCreator.create_base_clf(project_mode=project_mode)
-    base_X_train, base_X_test, base_y_train, base_y_test, base_model, base_y_pred, base_y_pred_proba = \
-                                                                base_clf.run_baseline(data=data.copy(),
-                                                                                      config=config)
+        ####-2. Execute Baseline XGBoost Classifier
+        base_clf:BaseClf = BaseClfCreator.create_base_clf(project_mode=project_mode)
+        base_X_train, base_X_test, base_y_train, base_y_test, base_model, base_y_pred, base_y_pred_proba = \
+                                                                    base_clf.run_baseline(data=data.copy(),
+                                                                                          config=config)
 
-    base_fpr, base_tpr, base_auc = utils.get_roc(y_test=base_y_test,
-                                                    y_pred=base_y_pred)
+        base_fpr, base_tpr, base_auc = utils.get_roc(y_test=base_y_test,
+                                                        y_pred=base_y_pred)
 
-    print(f"Base model AUC: {base_auc}")
-    utils.print_confusion_matrix(base_y_test,base_y_pred, base_y_pred_proba)
+        print(f"Base model AUC: {base_auc}")
+        utils.print_confusion_matrix(base_y_test,base_y_pred, base_y_pred_proba)
 
-    ####-3. Check fair pipeline impact on base model
-    showcase_pipeline_impact_on_base_model(config=config,
-                                           fairness_metric = fairness_metric,
-                                           base_clf=base_clf,
-                                           base_X_test=base_X_test,
-                                           base_y_test=base_y_test,
-                                           base_y_pred=base_y_pred)
+        ####-3. Check fair pipeline impact on base model
+        showcase_pipeline_impact_on_base_model(config=config,
+                                               fairness_metric = fairness_metric,
+                                               base_clf=base_clf,
+                                               base_X_test=base_X_test,
+                                               base_y_test=base_y_test,
+                                               base_y_pred=base_y_pred)
 
-    ####-4. search for most fairness biased sensitive feature
-    sensitive_feature = fair_clf.get_most_biased_sensitive_feature(data=data,
-                                                                   fairness_metric=fairness_metric,
-                                                                   base_clf=base_clf,
-                                                                   config=config,
-                                                                   method=fairness_metric)
+        ####-4. search for most fairness biased sensitive feature
+        sensitive_feature = fair_clf.get_most_biased_sensitive_feature(data=data.copy(),
+                                                                       fairness_metric=fairness_metric,
+                                                                       base_clf=base_clf,
+                                                                       config=config,
+                                                                       method=fairness_metric)
 
-    print(f"Sensitive feature with highest un-fair bias based on fairness metric '{fairness_metric}' is: {sensitive_feature} ")
-
-
-    ####-5. find privileged and unprivileged groups in sensitive feature
-    config = load_config(config_name=project_mode)
-    config['sensitive_feature'] = sensitive_feature
-
-    ppl, preprocessed_train_data, preprocessed_test_data, X_train, X_test, y_train, y_test = \
-                                                            fair_ppl.run_fair_data_preprocess_pipeline(data.copy(), config, stratify_mode='full')
-
-    X_train = utils.to_float_df(X_train)
-    y_train = utils.to_int_srs(y_train)
-    xgb_clf = base_clf.fit(X_train=X_train,
-                            y_train=y_train,
-                            X_test=utils.to_float_df(X_test))
-
-    y_pred, y_pred_proba = base_clf.predict(clf=xgb_clf,
-                                                  X=X_train)
-
-    sensitive_feature_srs = fair_clf.get_feature_col_from_preprocessed_data(feature_name=sensitive_feature,
-                                                                            data= X_train)
-    snsftr_groups_slctnrt_and_acc, snsftr_slctrt_sub_groups = \
-        fair_clf.get_feature_sub_groups_by_selection_rate(   y_true= y_train,
-                                                             y_pred= utils.to_int_srs(pd.Series(y_pred)),
-                                                             sensitive_feature_srs = sensitive_feature_srs)
+        print(f"Sensitive feature with highest un-fair bias based on fairness metric '{fairness_metric}' is: {sensitive_feature} ")
 
 
+        ####-5. find privileged and unprivileged groups in sensitive feature
+        config = load_config(config_name=project_mode)
+        config['sensitive_feature'] = sensitive_feature
 
-    ####-6. run gridsearch_cv with anomaly samples removal
-    gridsearch_cv = fair_clf.run_gridsearch_cv(base_clf=base_clf,
-                                               X_train = X_train,
-                                               y_train = y_train,
-                                               target_fairness_metric = fairness_metric,
-                                               sensitive_feature_name = sensitive_feature,
-                                               sensitive_feature_srs = sensitive_feature_srs,
-                                               snsftr_slctrt_sub_groups = snsftr_slctrt_sub_groups)
+        ppl, preprocessed_train_data, preprocessed_test_data, X_train, X_test, y_train, y_test = \
+                                                                fair_ppl.run_fair_data_preprocess_pipeline(data.copy(), config, stratify_mode='full')
 
+        X_train = utils.to_float_df(X_train)
+        y_train = utils.to_int_srs(y_train)
+        xgb_clf = base_clf.fit(X_train=X_train,
+                                y_train=y_train,
+                                X_test=utils.to_float_df(X_test))
 
+        y_pred, y_pred_proba = base_clf.predict(clf=xgb_clf,
+                                                      X=X_train)
 
+        sensitive_feature_srs = fair_clf.get_feature_col_from_preprocessed_data(feature_name=sensitive_feature,
+                                                                                data= X_train)
+        snsftr_groups_slctnrt_and_acc, snsftr_slctrt_sub_groups = \
+            fair_clf.get_feature_sub_groups_by_selection_rate(   y_true= y_train,
+                                                                 y_pred= utils.to_int_srs(pd.Series(y_pred)),
+                                                                 sensitive_feature_srs = sensitive_feature_srs)
+
+        print(f"snsftr_slctrt_sub_groups: {snsftr_slctrt_sub_groups}\n")
+        print(f"snsftr_groups_slctnrt_and_acc:\n{snsftr_groups_slctnrt_and_acc}\n")
+
+        ####-6. run gridsearch_cv with anomaly samples removal
+        pipe_cv = fair_clf.run_gridsearch_cv(base_clf=base_clf,
+                                                   X_train = X_train,
+                                                   y_train = y_train,
+                                                   target_fairness_metric = fairness_metric,
+                                                   sensitive_feature_name = sensitive_feature,
+                                                   sensitive_feature_srs = sensitive_feature_srs,
+                                                   snsftr_slctrt_sub_groups = snsftr_slctrt_sub_groups,
+                                                   verbose=False)
+
+        results = pd.DataFrame(pipe_cv.cv_results_)
+        datetime_tag = datetime.now().strftime("%y%m%d_%H%M%S")
+        results.to_csv(f'./gscv_results/{datetime_tag}_{project_mode}.csv')
+        print(f'results:\n{results}')
