@@ -256,7 +256,7 @@ class FairClassifier:
                                utils.to_int_srs(pd.Series(y_pred)),
                                beta=2, average='macro')
             if verbose:
-                print(f'f2 Score:{score}')
+                print(f'macro fbeta_2 Score:{score}')
 
             return score
 
@@ -265,7 +265,7 @@ class FairClassifier:
                             utils.to_int_srs(pd.Series(y_pred)),
                             average='macro')
             if verbose:
-                print(f'f1 Score:{score}')
+                print(f'macro f1 Score:{score}')
 
             return score
 

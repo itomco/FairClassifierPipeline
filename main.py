@@ -122,9 +122,9 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
 
         clsf_rprt = classification_report(base_y_test, pd.Series(base_y_pred), digits=4, output_dict=True)
         snsftr_f1_w_base_preprocess.update({f'{sf}:accuracy':clsf_rprt['accuracy'],
-                                            f'{sf}:precision':clsf_rprt['macro avg']['precision'],
-                                            f'{sf}:recall':clsf_rprt['macro avg']['recall'],
-                                            f'{sf}:f1-score':clsf_rprt['macro avg']['f1-score']})
+                                            f'{sf}:macro_avg-precision':clsf_rprt['macro avg']['precision'],
+                                            f'{sf}:macro_avg-recall':clsf_rprt['macro avg']['recall'],
+                                            f'{sf}:macro_avg-f1-score':clsf_rprt['macro avg']['f1-score']})
 
 
 
@@ -156,9 +156,9 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
 
         clsf_rprt = classification_report(initial_y_test, pd.Series(initial_y_pred), digits=4, output_dict=True)
         snsftr_f1_w_fair_pipeline.update({f'{sf}:accuracy':clsf_rprt['accuracy'],
-                                          f'{sf}:precision':clsf_rprt['macro avg']['precision'],
-                                          f'{sf}:recall':clsf_rprt['macro avg']['recall'],
-                                          f'{sf}:f1-score':clsf_rprt['macro avg']['f1-score']})
+                                          f'{sf}:macro_avg-precision':clsf_rprt['macro avg']['precision'],
+                                          f'{sf}:macro_avg-recall':clsf_rprt['macro avg']['recall'],
+                                          f'{sf}:macro_avg-f1-score':clsf_rprt['macro avg']['f1-score']})
 
 
     base_vs_initial_eod_results = pd.DataFrame([snsftr_eods_w_base_preprocess,
