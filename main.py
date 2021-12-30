@@ -170,7 +170,6 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
     base_vs_initial_eod_results.columns = ['base','initial']
     base_vs_initial_macro_avg_cf_resuls.columns = ['base','initial']
     print(f"Base model vs Initial Model for sensitive feature '{sf}':\n{pd.concat([base_vs_initial_eod_results,base_vs_initial_macro_avg_cf_resuls],axis=0)}")
-    # a = 1
 
 if __name__ == '__main__':
     project_mode = 'bank'
