@@ -72,7 +72,7 @@ from fairlearn.metrics import (
 )
 import itertools
 from FairClassifierPipeline.FairClassifier import FairClassifier as fair_clf
-
+from FairClassifierPipeline import Utils as utils
 
 ################# Types handling functions ###########################
 
@@ -712,7 +712,7 @@ def create_pipeline(config:Dict) -> pipe:
     # we're not relying on the assumption that the already processed data stracture, passed in the pipline, 
     # has the same columns as in the preprocessed (i.e.initial) data DataFrame).
     #This way our code is much more generic and enables further transformations prior to 
-    # categorical_numerical_preprocessor even such that changes the columns set (e.g. add / remove) 
+    # categorical_numerical_preprocessor even such that changes the columns set (e.g. add / remove)
     ppl = pipe(steps=
            [
            ('remove_columns_wo_label', FunctionTransformer(remove_columns_wo_label,
@@ -777,6 +777,11 @@ def split_data(data:pd.DataFrame, config:Dict, stratify_mode:str='full'):
 
     data = data.copy()
 
+    # shift column 'Name' to first position
+    label_col = data.pop(config['label_col'])
+    data.insert(0, config['label_col'], label_col)
+
+    rs = 111
     sensitive_feature_col = None
     if stratify_mode in ['sensitive_feature','full']:
         sensitive_feature_col = fair_clf.get_feature_col_from_preprocessed_data(feature_name=config['sensitive_feature'],
@@ -786,21 +791,21 @@ def split_data(data:pd.DataFrame, config:Dict, stratify_mode:str='full'):
     if stratify_mode == 'full':
         data['stratify_col'] = data[config['label_col']].astype(str) + sensitive_feature_col.astype(str)
         try:
-            train_df, test_df = train_test_split(data, test_size=0.2,random_state=1, stratify=data['stratify_col'])
+            train_df, test_df = train_test_split(data, test_size=0.2,random_state=rs, stratify=data['stratify_col'])
         except BaseException as e:
-            train_df, test_df = train_test_split(data, test_size=0.2,random_state=1, stratify=data[config['label_col']])
+            train_df, test_df = train_test_split(data, test_size=0.2,random_state=rs, stratify=data[config['label_col']])
 
         train_df.drop(columns=['stratify_col'],inplace=True)
         test_df.drop(columns=['stratify_col'],inplace=True)
     elif stratify_mode == 'sensitive_feature':
         try:
-            train_df, test_df = train_test_split(data, test_size=0.2,random_state=1, stratify=sensitive_feature_col)
+            train_df, test_df = train_test_split(data, test_size=0.2,random_state=rs, stratify=sensitive_feature_col)
         except BaseException as e:
-            train_df, test_df = train_test_split(data, test_size=0.2,random_state=1)
+            train_df, test_df = train_test_split(data, test_size=0.2,random_state=rs)
     elif stratify_mode == 'label':
-        train_df, test_df = train_test_split(data, test_size=0.2, random_state=1, stratify=data[config['label_col']])
+        train_df, test_df = train_test_split(data, test_size=0.2, random_state=rs, stratify=data[config['label_col']])
     else:
-        train_df, test_df = train_test_split(data, test_size=0.2, random_state=1)
+        train_df, test_df = train_test_split(data, test_size=0.2, random_state=rs)
 
     return(train_df, test_df)
 
@@ -808,6 +813,8 @@ def split_data(data:pd.DataFrame, config:Dict, stratify_mode:str='full'):
 def run_fair_data_preprocess_pipeline(data:pd.DataFrame, config:Dict):
     ppl = create_pipeline(config)
     # categorical_numerical_preprocessor.fit_transform(X_train, y_train)
+    utils.save_date_processing_debug(data,"INITIAL_data")
+
     train_df, test_df = split_data( data=data,
                                     config=config)
 
@@ -816,9 +823,11 @@ def run_fair_data_preprocess_pipeline(data:pd.DataFrame, config:Dict):
 
     preprocessed_train_data = pd.DataFrame(data=preprocessed_train_data, columns=final_columns)
 
+
     # https://datatofish.com/numpy-array-to-pandas-dataframe/ - following this tutorial, a numpy array containing multiple types of columns values results with all object array.
     # https://stackoverflow.com/questions/61346021/create-a-mixed-type-pandas-dataframe-using-an-numpy-array-of-type-object
     preprocessed_train_data = preprocessed_train_data.convert_dtypes()
+    utils.save_date_processing_debug(preprocessed_train_data,"INITIAL_preprocessed_train_data")
 
     X_train = preprocessed_train_data.drop(columns=[config['label_col']], axis=1)
     y_train = preprocessed_train_data[config['label_col']]
@@ -829,6 +838,9 @@ def run_fair_data_preprocess_pipeline(data:pd.DataFrame, config:Dict):
     preprocessed_test_data = ppl.transform(test_df)
     preprocessed_test_data = pd.DataFrame(data=preprocessed_test_data, columns=final_columns)
     preprocessed_test_data = preprocessed_test_data.convert_dtypes()
+
+    utils.save_date_processing_debug(preprocessed_test_data,"INITIAL_preprocessed_test_data")
+
     X_test = preprocessed_test_data.drop(columns=[config['label_col']], axis=1)
     y_test = preprocessed_test_data[config['label_col']]
 

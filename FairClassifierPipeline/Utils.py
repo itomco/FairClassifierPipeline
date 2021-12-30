@@ -3,6 +3,8 @@ import json
 # from google.colab import drive
 # import requests
 import zipfile
+from datetime import datetime
+import os
 import pandas as pd
 import numpy as np
 import sklearn
@@ -70,6 +72,26 @@ from fairlearn.metrics import (
     equalized_odds_difference
 )
 import itertools
+
+def get_datetime_tag():
+    return datetime.now().strftime("%y%m%d_%H%M%S")
+
+dt_tag = get_datetime_tag()
+debug_data_preprocessing = False
+data_files_saved_counter = 0
+
+def save_date_processing_debug(data:Union[pd.Series, pd.DataFrame],data_name):
+    if debug_data_preprocessing:
+        directory = f"data_processing/{dt_tag}"
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
+        global data_files_saved_counter
+        data_files_saved_counter += 1
+        data.to_csv(f"data_processing/{dt_tag}/[{data_files_saved_counter}]_{data_name}.csv")
+        if isinstance(data,pd.DataFrame):
+            pd.Series(data.columns).sort_values().to_csv(f"data_processing/{dt_tag}/[{data_files_saved_counter}]_{data_name}_columns.csv")
+
 def to_int_srs(series:pd.Series) -> pd.Series:
     assert isinstance(series,pd.Series), 'df must be of type pd.Series'
     return pd.Series(np.array(series.values,dtype=int))

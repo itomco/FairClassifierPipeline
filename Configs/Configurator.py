@@ -34,7 +34,9 @@ def create_german_config(config_name:str='german'):
                                             # 'peopleliable':[1,2],#18
                                             }
 
-    config['numeric_to_ord_cat'] = {'age':[25,50]}
+    config['numeric_to_ord_cat'] = {
+                                    'age':[25,50]
+                                    }
 
     config['max_sparse_col_threshold'] = 0.8
     config['data_path'] = './Data/german.data'

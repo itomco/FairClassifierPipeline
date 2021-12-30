@@ -301,36 +301,36 @@ class FairClassifier:
             ('fairxgboost', FairXGBClassifier())])
 
         # Define the parameter grid space
-        # param_grid = {
-        #     'fairxgboost__base_clf':[base_clf],
-        #     'fairxgboost__anomalies_per_to_remove': [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4],  # 0.1,0.2 !!!!!!!!!!!!!!!!!!
-        #     'fairxgboost__include_sensitive_feature': [True, False],  # False
-        #     'fairxgboost__sensitive_col_name': [sensitive_feature_name],
-        #     'fairxgboost__remove_side': ['only_non_privilaged', 'only_privilaged', 'all'],
-        #     # 'only_privilaged'(A93,A94),'only_non_privilaged'(A91,A92),'all'
-        #     'fairxgboost__data_columns': [tuple(X_train.columns)],
-        #     'fairxgboost__anomaly_model_params': FairClassifier.build_gridsearch_cv_params(X_train),  # global_params_sets !!!!!!!!!!!!!!!!!!!
-        #     'fairxgboost__snsftr_slctrt_sub_groups': [snsftr_slctrt_sub_groups],
-        #     'fairxgboost__verbose': [verbose],
-        # }
-
         param_grid = {
-            'fairxgboost__anomalies_per_to_remove': [0.3],
-            'fairxgboost__anomaly_model_params': [{'IF': {'n_estimators': 150, 'max_samples': 0.5, 'contamination': 'auto', 'max_features': 10,
-                   'bootstrap': True, 'n_jobs': -1}}],
             'fairxgboost__base_clf':[base_clf],
-            'fairxgboost__data_columns': [('creditamount', 'duration', 'telephone_A192', 'purpose_A40', 'purpose_A41', 'purpose_A410', 'purpose_A42',
-            'purpose_A43', 'purpose_A44', 'purpose_A45', 'purpose_A46', 'purpose_A48', 'purpose_A49', 'foreignworker_A202',
-            'statussex_A91', 'statussex_A92', 'statussex_A93', 'statussex_A94', 'existingchecking', 'credithistory',
-            'savings', 'employmentsince', 'otherdebtors', 'property', 'housing', 'job', 'age', 'installmentrate',
-            'residencesince', 'otherinstallmentplans', 'peopleliable',
-            'existingcredits')],
-             'fairxgboost__include_sensitive_feature': [False],
-            'fairxgboost__remove_side': ['only_non_privilaged'],
-            'fairxgboost__sensitive_col_name': ['statussex'],
-            'fairxgboost__snsftr_slctrt_sub_groups': [(('statussex_A91', 'statussex_A92'), ('statussex_A93', 'statussex_A94'))],
-             'fairxgboost__verbose': [False]
+            'fairxgboost__anomalies_per_to_remove': [0.5],#[0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4],  # 0.1,0.2 !!!!!!!!!!!!!!!!!!
+            'fairxgboost__include_sensitive_feature': [True],#[True, False],  # False
+            'fairxgboost__sensitive_col_name': [sensitive_feature_name],
+            'fairxgboost__remove_side': ['only_privilaged'],#['only_non_privilaged', 'only_privilaged', 'all'],
+            # 'only_privilaged'(A93,A94),'only_non_privilaged'(A91,A92),'all'
+            'fairxgboost__data_columns': [tuple(X_train.columns)],
+            'fairxgboost__anomaly_model_params': FairClassifier.build_gridsearch_cv_params(X_train),  # global_params_sets !!!!!!!!!!!!!!!!!!!
+            'fairxgboost__snsftr_slctrt_sub_groups': [snsftr_slctrt_sub_groups],
+            'fairxgboost__verbose': [verbose],
         }
+
+        # param_grid = {
+        #     'fairxgboost__anomalies_per_to_remove': [0.3],
+        #     'fairxgboost__anomaly_model_params': [{'IF': {'n_estimators': 150, 'max_samples': 0.5, 'contamination': 'auto', 'max_features': 10,
+        #            'bootstrap': True, 'n_jobs': -1}}],
+        #     'fairxgboost__base_clf':[base_clf],
+        #     'fairxgboost__data_columns': [('creditamount', 'duration', 'telephone_A192', 'purpose_A40', 'purpose_A41', 'purpose_A410', 'purpose_A42',
+        #     'purpose_A43', 'purpose_A44', 'purpose_A45', 'purpose_A46', 'purpose_A48', 'purpose_A49', 'foreignworker_A202',
+        #     'statussex_A91', 'statussex_A92', 'statussex_A93', 'statussex_A94', 'existingchecking', 'credithistory',
+        #     'savings', 'employmentsince', 'otherdebtors', 'property', 'housing', 'job', 'age', 'installmentrate',
+        #     'residencesince', 'otherinstallmentplans', 'peopleliable',
+        #     'existingcredits')],
+        #      'fairxgboost__include_sensitive_feature': [False],
+        #     'fairxgboost__remove_side': ['only_non_privilaged'],
+        #     'fairxgboost__sensitive_col_name': ['statussex'],
+        #     'fairxgboost__snsftr_slctrt_sub_groups': [(('statussex_A91', 'statussex_A92'), ('statussex_A93', 'statussex_A94'))],
+        #      'fairxgboost__verbose': [False]
+        # }
 
 
         #best standard metirics for imbalanced data is probably fbeta_<x> (f1 is the base case)

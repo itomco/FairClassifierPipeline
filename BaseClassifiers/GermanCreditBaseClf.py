@@ -156,8 +156,9 @@ class GermanBaseClf(BaseClf):
         - y_pred_proba:pd.Series - pre-trainded model's predict_proba result on X_test
         '''
         data_baseline = data.copy()
+        utils.save_date_processing_debug(data_baseline,"BASE_data_baseline")
+
         # Binarize the y output for easier use of e.g. ROC curves -> 0 = 'bad' credit; 1 = 'good' credit
-        data_baseline[config['label_col']].replace([1, 2], [1, 0], inplace=True)
         # Print number of 'good' credits (should be 700) and 'bad credits (should be 300)
         # data_baseline.classification.value_counts()
 
@@ -172,6 +173,7 @@ class GermanBaseClf(BaseClf):
         catvars = ['existingchecking', 'credithistory', 'purpose', 'savings', 'employmentsince',
                    'statussex', 'otherdebtors', 'property', 'otherinstallmentplans', 'housing', 'job',
                    'telephone', 'foreignworker']
+
 
         # d = defaultdict(LabelEncoder)
 
@@ -189,18 +191,29 @@ class GermanBaseClf(BaseClf):
         data_baseline_clean = pd.concat([data_baseline[numvars], dummyvars], axis=1)
 
         # print(data_baseline_clean.shape)
-
+        utils.save_date_processing_debug(data_baseline_clean,"BASE_data_baseline_clean")
         # Unscaled, unnormalized data
 
         #create common train,. test split
         X_train, X_test = fair_ppl.split_data(data=data_baseline_clean,
                                                 config=config)
 
+        X_train[config['label_col']].replace([1, 2], [1, 0], inplace=True)
+        X_test[config['label_col']].replace([1, 2], [1, 0], inplace=True)
+
+        utils.save_date_processing_debug(X_train,'BASE_X_train.csv')
+        utils.save_date_processing_debug(X_test,"BASE_X_test.csv")
+
         X_baseline_train_clean = X_train.drop(config['label_col'], axis=1)
         y_baseline_train_clean = X_train[config['label_col']]
 
         X_baseline_test_clean = X_test.drop(config['label_col'], axis=1)
         y_baseline_test_clean = X_test[config['label_col']]
+
+        utils.save_date_processing_debug(X_baseline_train_clean,'BASE_X_baseline_train_clean')
+        utils.save_date_processing_debug(y_baseline_train_clean,'BASE_y_baseline_train_clean')
+        utils.save_date_processing_debug(X_baseline_test_clean,'BASE_X_baseline_test_clean')
+        utils.save_date_processing_debug(y_baseline_test_clean,'BASE_y_baseline_test_clean')
 
         # X_baseline_train_clean, X_baseline_test_clean, y_baseline_train_clean, y_baseline_test_clean = train_test_split(
         #     X_baseline_clean, y_baseline_clean, test_size=0.2, random_state=1)

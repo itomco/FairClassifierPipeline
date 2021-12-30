@@ -100,14 +100,16 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
                                            ):
 
     sensitive_features_names = config['sensitive_features']
-    snsftr_eods_w_base_preprocess = {}
-    snsftr_eods_w_fair_pipeline = {}
-    snsftr_f1_w_base_preprocess = {}
-    snsftr_f1_w_fair_pipeline = {}
+
 
     for sf in sensitive_features_names:
         if sf in data.columns and fair_ppl.is_categorial(data[sf]) == False:
             continue
+
+        snsftr_eods_w_base_preprocess = {}
+        snsftr_eods_w_fair_pipeline = {}
+        snsftr_f1_w_base_preprocess = {}
+        snsftr_f1_w_fair_pipeline = {}
 
         config['sensitive_feature'] = sf
 
@@ -170,15 +172,15 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
                                           f'{sf}:macro_avg-f1-score':clsf_rprt['macro avg']['f1-score']})
 
 
-    base_vs_initial_eod_results = pd.DataFrame([snsftr_eods_w_base_preprocess,
-                                                snsftr_eods_w_fair_pipeline]).T
+        base_vs_initial_eod_results = pd.DataFrame([snsftr_eods_w_base_preprocess,
+                                                    snsftr_eods_w_fair_pipeline]).T
 
-    base_vs_initial_macro_avg_cf_resuls = pd.DataFrame([snsftr_f1_w_base_preprocess,
-                                                       snsftr_f1_w_fair_pipeline]).T
+        base_vs_initial_macro_avg_cf_resuls = pd.DataFrame([snsftr_f1_w_base_preprocess,
+                                                           snsftr_f1_w_fair_pipeline]).T
 
-    base_vs_initial_eod_results.columns = ['base','initial']
-    base_vs_initial_macro_avg_cf_resuls.columns = ['base','initial']
-    print(f"Base model vs Initial Model for sensitive feature '{sf}':\n{pd.concat([base_vs_initial_eod_results,base_vs_initial_macro_avg_cf_resuls],axis=0)}")
+        base_vs_initial_eod_results.columns = ['base','initial']
+        base_vs_initial_macro_avg_cf_resuls.columns = ['base','initial']
+        print(f"Base model vs Initial Model for sensitive feature '{sf}':\n{pd.concat([base_vs_initial_eod_results,base_vs_initial_macro_avg_cf_resuls],axis=0)}")
 
 if __name__ == '__main__':
     fairness_metric = 'EOD' #todo: add 'AOD' metric support and change the 'fairness_metric' to use in the project to be 'AOD'
@@ -249,7 +251,7 @@ if __name__ == '__main__':
                                                    sensitive_feature_name = sensitive_feature,
                                                    sensitive_feature_srs = sensitive_feature_srs,
                                                    snsftr_slctrt_sub_groups = snsftr_slctrt_sub_groups,
-                                                   verbose=True)
+                                                   verbose=False)
 
         results = pd.DataFrame(pipe_cv.cv_results_)
         datetime_tag = datetime.now().strftime("%y%m%d_%H%M%S")
@@ -266,3 +268,5 @@ if __name__ == '__main__':
                                                                            data=X_test)
 
         print(f"best_model_eod: {best_model_eod}")
+        print(classification_report(y_test, pd.Series(y_pred), digits=4))
+        momo=10
