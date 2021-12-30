@@ -303,10 +303,10 @@ class FairClassifier:
         # Define the parameter grid space
         param_grid = {
             'fairxgboost__base_clf':[base_clf],
-            'fairxgboost__anomalies_per_to_remove': [0.5],#[0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4],  # 0.1,0.2 !!!!!!!!!!!!!!!!!!
-            'fairxgboost__include_sensitive_feature': [True],#[True, False],  # False
+            'fairxgboost__anomalies_per_to_remove': [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5],  # 0.1,0.2 !!!!!!!!!!!!!!!!!!
+            'fairxgboost__include_sensitive_feature': [True, False],  # False
             'fairxgboost__sensitive_col_name': [sensitive_feature_name],
-            'fairxgboost__remove_side': ['only_privilaged'],#['only_non_privilaged', 'only_privilaged', 'all'],
+            'fairxgboost__remove_side': ['only_non_privilaged', 'only_privilaged', 'all'],
             # 'only_privilaged'(A93,A94),'only_non_privilaged'(A91,A92),'all'
             'fairxgboost__data_columns': [tuple(X_train.columns)],
             'fairxgboost__anomaly_model_params': FairClassifier.build_gridsearch_cv_params(X_train),  # global_params_sets !!!!!!!!!!!!!!!!!!!

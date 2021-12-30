@@ -73,7 +73,7 @@ import itertools
 
 from BaseClassifiers.BaseClf import BaseClf
 from FairClassifierPipeline import Utils as utils
-
+from FairClassifierPipeline import FairPipeline as fair_ppl
 
 class BankBaseClf(BaseClf):
     @staticmethod
@@ -126,7 +126,7 @@ class BankBaseClf(BaseClf):
         #pd is instance of pandas. Using get_dummies method we can directly convert any type of data into One-Hot encoded format.
 
         # Since y is a class variable we will have to convert it into binary format. (Since 2 unique class values)
-        data_new.y.replace(('yes', 'no'), (1, 0), inplace=True)
+
         # data_new.y.value_counts()
 
         # Checking types of all the columns converted
@@ -136,21 +136,32 @@ class BankBaseClf(BaseClf):
         # data_new.head()
 
         # Spliting data as X -> features and y -> class variable
-        data_y = pd.DataFrame(data_new[config['label_col']])
-        data_X = data_new.drop([config['label_col']], axis=1)
+
         # print(data_X.columns)
         # print(data_y.columns)
 
+        X_train, X_test = fair_ppl.split_data(data=data_new,
+                                              config=config)
+
+        X_train[config['label_col']].replace(('yes', 'no'), (1, 0), inplace=True)
+        X_test[config['label_col']].replace(('yes', 'no'), (1, 0), inplace=True)
+
+        y_train = X_train[config['label_col']]
+        X_train = X_train.drop([config['label_col']], axis=1)
+
+        y_test = X_test[config['label_col']]
+        X_test = X_test.drop([config['label_col']], axis=1)
+
         # Dividing records in training and testing sets along with its shape (rows, cols)
-        X_train, X_test, y_train, y_test = train_test_split(data_X, data_y, test_size=0.3, random_state=2, stratify=data_y)
+        # X_train, X_test, y_train, y_test = train_test_split(data_X, data_y, test_size=0.3, random_state=2, stratify=data_y)
         # print(X_train.shape)
         # print(X_test.shape)
         # print(y_train.shape)
         # print(y_test.shape)
 
         # Create an XGB classifier and train it on 70% of the data set.
-        y_train = y_train.iloc[:, 0]
-        y_test = y_test.iloc[:, 0]
+        # y_train = y_train.iloc[:, 0]
+        # y_test = y_test.iloc[:, 0]
 
         return(X_train, X_test, y_train, y_test,
                *BankBaseClf.fit_predict(X_train=utils.to_float_df(X_train),
