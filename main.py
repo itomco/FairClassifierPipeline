@@ -262,7 +262,11 @@ if __name__ == '__main__':
         results.to_csv(f'./gscv_results/{datetime_tag}_{project_mode}.csv')
         print(f'results:\n{results}')
 
-        y_pred = pipe_cv.predict(X_test)
+        y_pred_list = pipe_cv.predict(X_test)
+
+        mean_test_bst_f1th = pipe_cv.cv_results_['mean_test_bst_f1th'][pipe_cv.best_index_]
+        y_pred = (y_pred_list[0] >= mean_test_bst_f1th).astype('int')
+
         y_pred = utils.to_int_srs(pd.Series(y_pred))
 
         best_fair_clf_model = fair_clf.get_fairness_score_for_sensitive_features(sensitive_features_names=[sensitive_feature],
