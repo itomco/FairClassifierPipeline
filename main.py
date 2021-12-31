@@ -94,7 +94,7 @@ def load_config(config_name:str) -> Dict:
     return config_reloaded
 
 def showcase_pipeline_impact_on_base_model(config:Dict,
-                                           fairness_metric:str,
+                                           fairness_metrics:List,
                                            base_clf:BaseClf,
                                            data:pd.DataFrame
                                            ):
@@ -125,11 +125,13 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
         utils.print_confusion_matrix(base_y_test,base_y_pred, base_y_pred_proba)
 
         #base model
-        snsftr_eods_w_base_preprocess.update(fair_clf.get_fairness_score_for_sensitive_features(sensitive_features_names= [sf],
-                                                                                                fairness_metric=fairness_metric,
-                                                                                                y_true=base_y_test,
-                                                                                                y_pred=pd.Series(base_y_pred),
-                                                                                                data=base_X_test))
+        for frns_mtrc in fairness_metrics:
+            frns_mtrc = frns_mtrc.lower()
+            snsftr_eods_w_base_preprocess.update(fair_clf.get_fairness_score_for_sensitive_features(sensitive_features_names= [sf],
+                                                                                                    fairness_metric=frns_mtrc,
+                                                                                                    y_true=base_y_test,
+                                                                                                    y_pred=pd.Series(base_y_pred),
+                                                                                                    data=base_X_test))
 
         clsf_rprt = classification_report(base_y_test, pd.Series(base_y_pred), digits=4, output_dict=True)
         snsftr_f1_w_base_preprocess.update({f'{sf}:accuracy':clsf_rprt['accuracy'],
@@ -159,11 +161,12 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
         print(f"Initial model AUC: {initial_auc}")
         utils.print_confusion_matrix(utils.to_int_srs(initial_y_test),initial_y_pred, initial_y_pred_proba)
 
-        snsftr_eods_w_fair_pipeline.update(fair_clf.get_fairness_score_for_sensitive_features(sensitive_features_names = [sf],
-                                                                                              fairness_metric=fairness_metric,
-                                                                                              y_true=initial_y_test,
-                                                                                              y_pred=pd.Series(initial_y_pred),
-                                                                                              data=initial_X_test))
+        for frns_mtrc in fairness_metrics:
+            snsftr_eods_w_fair_pipeline.update(fair_clf.get_fairness_score_for_sensitive_features(sensitive_features_names = [sf],
+                                                                                                  fairness_metric=frns_mtrc,
+                                                                                                  y_true=initial_y_test,
+                                                                                                  y_pred=pd.Series(initial_y_pred),
+                                                                                                  data=initial_X_test))
 
         clsf_rprt = classification_report(initial_y_test, pd.Series(initial_y_pred), digits=4, output_dict=True)
         snsftr_f1_w_fair_pipeline.update({f'{sf}:accuracy':clsf_rprt['accuracy'],
@@ -183,7 +186,7 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
         print(f"Base model vs Initial Model for sensitive feature '{sf}':\n{pd.concat([base_vs_initial_eod_results,base_vs_initial_macro_avg_cf_resuls],axis=0)}")
 
 if __name__ == '__main__':
-    fairness_metric = 'EOD' #todo: add 'AOD' metric support and change the 'fairness_metric' to use in the project to be 'AOD'
+    fairness_metrics = ['AOD','EOD']
     for project_mode in ['bank','german']:
         # project_mode = 'german' # select 'bank' or 'german'
 
@@ -199,18 +202,19 @@ if __name__ == '__main__':
 
         ####-3. Check fair pipeline impact on base model
         showcase_pipeline_impact_on_base_model(config=config,
-                                               fairness_metric = fairness_metric,
+                                               fairness_metrics = fairness_metrics,
                                                base_clf=base_clf,
                                                data=data.copy())
 
         ####-4. search for most fairness biased sensitive feature
-        sensitive_feature = fair_clf.get_most_biased_sensitive_feature(data=data.copy(),
-                                                                       fairness_metric=fairness_metric,
-                                                                       base_clf=base_clf,
-                                                                       config=config,
-                                                                       method=fairness_metric)
+        target_fairness_metric = 'AOD'
 
-        print(f"Sensitive feature with highest un-fair bias based on fairness metric '{fairness_metric}' is: {sensitive_feature} ")
+        sensitive_feature = fair_clf.get_most_biased_sensitive_feature(data=data.copy(),
+                                                                       fairness_metric=target_fairness_metric,
+                                                                       base_clf=base_clf,
+                                                                       config=config)
+
+        print(f"Sensitive feature with highest un-fair bias based on fairness metric '{target_fairness_metric}' is: {sensitive_feature} ")
 
 
         ####-5. find privileged and unprivileged groups in sensitive feature
@@ -247,7 +251,7 @@ if __name__ == '__main__':
         pipe_cv = fair_clf.run_gridsearch_cv(base_clf=base_clf,
                                                    X_train = X_train,
                                                    y_train = y_train,
-                                                   target_fairness_metric = fairness_metric,
+                                                   target_fairness_metric = target_fairness_metric,
                                                    sensitive_feature_name = sensitive_feature,
                                                    sensitive_feature_srs = sensitive_feature_srs,
                                                    snsftr_slctrt_sub_groups = snsftr_slctrt_sub_groups,
@@ -261,12 +265,12 @@ if __name__ == '__main__':
         y_pred = pipe_cv.predict(X_test)
         y_pred = utils.to_int_srs(pd.Series(y_pred))
 
-        best_model_eod = fair_clf.get_fairness_score_for_sensitive_features(sensitive_features_names=[sensitive_feature],
-                                                                           fairness_metric=fairness_metric,
+        best_fair_clf_model = fair_clf.get_fairness_score_for_sensitive_features(sensitive_features_names=[sensitive_feature],
+                                                                           fairness_metric=target_fairness_metric,
                                                                            y_true=y_test,
                                                                            y_pred=y_pred,
                                                                            data=X_test)
 
-        print(f"best_model_eod: {best_model_eod}")
+        print(f"best_fair_clf_model: {best_fair_clf_model}")
         print(classification_report(y_test, pd.Series(y_pred), digits=4))
         momo=10

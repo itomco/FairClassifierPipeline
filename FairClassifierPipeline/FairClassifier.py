@@ -51,6 +51,22 @@ from sklearn.neighbors import LocalOutlierFactor
 from sklearn.covariance import EllipticEnvelope
 import rrcf
 
+#fairlearn
+# false_positive_rate_difference and true_positive_rate_difference metrics are derived metrics
+# created on-the-fly at import stage using make_derived_metric(...) at fairlearn file: _generated_metrics.py
+# therefore they are not recognized by pycharm before the import is actually performed
+# similar usage official example: https://github.com/fairlearn/fairlearn/blob/main/notebooks/Binary%20Classification%20with%20the%20UCI%20Credit-card%20Default%20Dataset.ipynb
+from fairlearn.metrics import (
+    MetricFrame,
+    true_positive_rate,
+    false_positive_rate,
+    false_negative_rate,
+    selection_rate,
+    count,
+    false_positive_rate_difference,
+    true_positive_rate_difference,
+    equalized_odds_difference
+)
 #classifier
 from xgboost import XGBClassifier
 from FairClassifierPipeline.RobustRandomCutForest import RobustRandomCutForest as RRCF
@@ -104,6 +120,19 @@ class FairClassifier:
 
         return sensitive_feature_srs
 
+    @staticmethod
+    def average_odds_difference(y_true: pd.Series,
+                                y_pred: pd.Series,
+                                sensitive_feature_arr: np.array):
+
+        fpr_diff = abs(false_positive_rate_difference(utils.to_int_srs(y_true), utils.to_int_srs(pd.Series(y_pred)),
+                                                      sensitive_features=sensitive_feature_arr))
+        tpr_diff = abs(true_positive_rate_difference(utils.to_int_srs(y_true), utils.to_int_srs(pd.Series(y_pred)),
+                                                     sensitive_features=sensitive_feature_arr))
+        aod_score = 0.5 * (fpr_diff + tpr_diff)
+
+        return aod_score
+
 
     @staticmethod
     def get_fairness_score_for_sensitive_features(sensitive_features_names:List[str],
@@ -111,22 +140,29 @@ class FairClassifier:
                                                   y_true:pd.Series,
                                                   y_pred:pd.Series,
                                                   data:pd.DataFrame):
-        assert fairness_metric.lower() == 'eod', 'currently support eod only'
+        fairness_metric = fairness_metric.lower()
+        assert fairness_metric.lower() in ['eod','aod'], 'currently support eod and aod only'
         assert isinstance(y_true, pd.Series), 'y_true must be of type pd.Series'
         assert isinstance(y_pred, pd.Series), 'y_pred must be of type pd.Series'
         assert isinstance(data, pd.DataFrame), 'data must be of type pd.DataFrame'
 
-        snsftr_eod_dict = {}
+        snsftr_frns_scores_dict = {}
         for ftr in sensitive_features_names:
             sensitive_feature_srs = None
             sensitive_feature_srs = FairClassifier.get_feature_col_from_preprocessed_data(data=data,feature_name=ftr)
+            if fairness_metric.lower() == 'eod':
+                result = equalized_odds_difference(y_true=y_true,
+                                                  y_pred=y_pred,
+                                                  sensitive_features=sensitive_feature_srs.values)
+            else:
+                result = FairClassifier.average_odds_difference( y_true=y_true,
+                                                                  y_pred=y_pred,
+                                                                  sensitive_feature_arr=sensitive_feature_srs.values)
 
-            eod = equalized_odds_difference(y_true=y_true,
-                                              y_pred=y_pred,
-                                              sensitive_features=sensitive_feature_srs.values)
-            snsftr_eod_dict[f'{ftr}:eod'] = eod
+            snsftr_frns_scores_dict[f'{ftr}:{fairness_metric}'] = result
 
-        return snsftr_eod_dict
+        return snsftr_frns_scores_dict
+
 
 
     @staticmethod
@@ -192,13 +228,13 @@ class FairClassifier:
     def get_most_biased_sensitive_feature(data:pd.DataFrame,
                                           fairness_metric:str,
                                           base_clf:BaseClf,
-                                          config:Dict,
-                                          method:str='eod'):
+                                          config:Dict):
 
-        assert method.lower() == 'eod', "currently only 'eod' method is supported"
+        fairness_metric = fairness_metric.lower()
+        assert fairness_metric in ['aod','eod'], "currently only 'aod' and 'eod' fairness metrics are supported"
 
         sensitive_features_names = config['sensitive_features']
-        sensitive_features_eod_scores_dict = {}
+        sf_fairness_scores_dict = {}
         for sf in sensitive_features_names:
             config['sensitive_feature'] = sf
 
@@ -216,17 +252,21 @@ class FairClassifier:
                                                                                     X_test=X_test)
 
 
-            sensitive_features_eod_scores_dict.update(FairClassifier.get_fairness_score_for_sensitive_features(sensitive_features_names=[sf],
+            sf_fairness_scores_dict.update(FairClassifier.get_fairness_score_for_sensitive_features(sensitive_features_names=[sf],
                                                                                                                fairness_metric=fairness_metric,
                                                                                                                y_true=y_test,
                                                                                                                y_pred=pd.Series(y_pred),
                                                                                                                data=X_test))
 
-        sensitive_features_eod_scores_df = pd.DataFrame.from_dict(sensitive_features_eod_scores_dict, orient='index', columns=['eod'])
-        sensitive_features_eod_scores_df = sensitive_features_eod_scores_df.sort_values(ascending=False, by=['eod'])
-        print(sensitive_features_eod_scores_df)
+        sf_fairness_scores_dict_df = pd.DataFrame.from_dict(sf_fairness_scores_dict, orient='index', columns=[fairness_metric])
+        sf_fairness_scores_dict_df = sf_fairness_scores_dict_df.sort_values(ascending=False, by=[fairness_metric])
+        print(sf_fairness_scores_dict_df)
 
-        return sensitive_features_eod_scores_df.index[0].split(':')[0]
+        return sf_fairness_scores_dict_df.index[0].split(':')[0]
+
+    def adapt_pred_thresh_for_best_f1(self,y_true: pd.Series, y_pred: np.ndarray):
+        pass
+
 
     @staticmethod
     def run_gridsearch_cv(base_clf:BaseClf,
@@ -238,7 +278,7 @@ class FairClassifier:
                           snsftr_slctrt_sub_groups:Tuple[Tuple,Tuple],
                           verbose=False):
 
-        assert target_fairness_metric.lower() == 'eod', 'eod is currntly the only supported fairness metric'
+        assert target_fairness_metric.lower() in ['aod','eod'], 'eod and aod are currntly the only supported fairness metrics'
 
         # #################################################################################################################
         # RepeatedStratifiedKFold params
@@ -246,6 +286,7 @@ class FairClassifier:
         n_repeats = 1
         random_state = 42 #todo: test other random states for RepeatedStratifiedKFold
         # #################################################################################################################
+        adapt_pred_thresh_for_best_f1 = False
 
         # https://stackoverflow.com/questions/49017257/custom-scoring-on-gridsearchcv-with-fold-dependent-parameter
         rskf = RepeatedStratifiedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=random_state)
@@ -255,14 +296,20 @@ class FairClassifier:
         for train_index, test_index in rskf.split(X_train, y_train):
             grid_search_idx[hash(y_train[test_index].values.tobytes())] = np.copy(test_index)
 
-        def f2_measure(y_true:pd.Series, y_pred:np.ndarray) -> float:
-            score = fbeta_score(utils.to_int_srs(y_true),
-                               utils.to_int_srs(pd.Series(y_pred)),
-                               beta=2, average='macro')
-            if verbose:
-                print(f'macro fbeta_2 Score:{score}')
+        def aod_measure(y_true: pd.Series, y_pred: np.ndarray) -> float:
+            sensitive_selected_arr = sensitive_feature_srs.values[grid_search_idx[hash(y_true.values.tobytes())]]
+            try:
+                score = FairClassifier.average_odds_difference(y_true=utils.to_int_srs(y_true),
+                                                                  y_pred=utils.to_int_srs(pd.Series(y_pred)),
+                                                                  sensitive_feature_arr=sensitive_selected_arr)
+            except BaseException as e:
+                print(f"Exception raised due to insufficient values for some of the sub groups:\n{pd.Series(sensitive_selected_arr).value_counts()}")
+                score = 20
 
+            if verbose:
+                print(f'AOD Score:{score}')
             return score
+
 
         def f1_measure(y_true:pd.Series, y_pred:np.ndarray) -> float:
             score = f1_score(utils.to_int_srs(y_true),
@@ -277,17 +324,17 @@ class FairClassifier:
         def eod_measure(y_true: pd.Series, y_pred: np.ndarray) -> float:
             sensitive_selected_arr = sensitive_feature_srs.values[grid_search_idx[hash(y_true.values.tobytes())]]
             try:
-                eod_score = equalized_odds_difference(utils.to_int_srs(y_true),
+                score = equalized_odds_difference(utils.to_int_srs(y_true),
                                                           utils.to_int_srs(pd.Series(y_pred)),
                                                           sensitive_features=sensitive_selected_arr)
             except BaseException as e:
                 print(
                     f"Exception raised due to insufficient values for some of the sub groups:\n{pd.Series(sensitive_selected_arr).value_counts()}")
-                eod_score = 10
+                score = 10
 
             if verbose:
-                print(f'EOD Score:{eod_score}')
-            return eod_score
+                print(f'EOD Score:{score}')
+            return score
 
         # def eod_measure(y_true:pd.Series, y_pred:np.ndarray) -> float:
         #     sensitive_selected_arr = sensitive_feature_srs.values[grid_search_idx[hash(y_true.values.tobytes())]]
@@ -311,6 +358,7 @@ class FairClassifier:
             'fairxgboost__data_columns': [tuple(X_train.columns)],
             'fairxgboost__anomaly_model_params': FairClassifier.build_gridsearch_cv_params(X_train),  # global_params_sets !!!!!!!!!!!!!!!!!!!
             'fairxgboost__snsftr_slctrt_sub_groups': [snsftr_slctrt_sub_groups],
+            'fairxgboost__find_best_f1': [True],
             'fairxgboost__verbose': [verbose],
         }
 
@@ -346,8 +394,8 @@ class FairClassifier:
         # https://hub.gke2.mybinder.org/user/scikit-learn-scikit-learn-s0vnxwm7/lab/tree/notebooks/auto_examples/model_selection/plot_roc.ipynb
 
         scorers_dict = {'eod':make_scorer(eod_measure, greater_is_better=False),
-                        'f1':make_scorer(f1_measure,greater_is_better=True),
-                        'fbeta_2':make_scorer(f2_measure,greater_is_better=True)}
+                        'aod':make_scorer(aod_measure, greater_is_better=False),
+                        'f1':make_scorer(f1_measure,greater_is_better=True)}
         refit = target_fairness_metric.lower()
         assert refit in scorers_dict.keys(), f"gridsearch_cv's parameter 'refit' == '{target_fairness_metric}' (target_fairness_metric) and must be one of the scorrers names"
 
@@ -397,10 +445,10 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
         The classes seen at :meth:`fit`.
     """
 
-    def __init__(self, base_clf:BaseClf=None, anomalies_per_to_remove=None, remove_side=None,
-                 include_sensitive_feature=None, sensitive_col_name=None,
-                 data_columns=None, anomaly_model_params=None, snsftr_slctrt_sub_groups=None,
-                 verbose=True, do_plots:bool=False):
+    def __init__(self, base_clf:BaseClf=None, anomalies_per_to_remove:float=None, remove_side:str=None,
+                 include_sensitive_feature:bool=None, sensitive_col_name:str=None,
+                 data_columns:List=None, anomaly_model_params:Dict=None, snsftr_slctrt_sub_groups:Tuple[Tuple,Tuple]=None,
+                 find_best_f1:bool=False,verbose:bool=True, do_plots:bool=False):
 
         self.base_clf = base_clf
         self.anomalies_per_to_remove = anomalies_per_to_remove
@@ -410,6 +458,7 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
         self.data_columns = data_columns
         self.anomaly_model_params = anomaly_model_params
         self.snsftr_slctrt_sub_groups = snsftr_slctrt_sub_groups
+        self.find_best_f1 = find_best_f1
         self.verbose = verbose
         self.do_plots = do_plots
 
@@ -442,6 +491,7 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
                 "data_columns": self.data_columns,
                 "anomaly_model_params": self.anomaly_model_params,
                 "snsftr_slctrt_sub_groups": self.snsftr_slctrt_sub_groups,
+                "find_best_f1":self.find_best_f1,
                 "verbose": self.verbose,
                 "do_plots": self.do_plots}
 
@@ -572,7 +622,7 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
 
         # https: // xgboost.readthedocs.io / en / stable / python / python_api.html
         self.model = self.base_clf.fit(X_train=self.data.drop(list(anomalies_idx_to_remove)),
-                                                                y_train=np.delete(self.y_, list(anomalies_idx_to_remove)))
+                                       y_train=pd.Series(np.delete(self.y_, list(anomalies_idx_to_remove))))
 
 
         # self.model = self.XGBClassifier.fit(X=self.data.drop(list(anomalies_idx_to_remove)),
@@ -582,6 +632,7 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
 
         # Return the classifier
         return self
+
 
     def predict(self, X):
         """ Predict using the classifier.
