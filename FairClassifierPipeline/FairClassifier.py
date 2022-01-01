@@ -204,7 +204,7 @@ class FairClassifier:
         svm_param_grid = {'kernel': ['rbf'],
                           'gamma': ['auto', 1, 0.1, 0.01, 0.001, 0.0001]}
 
-        rc_param_grid = {'random_state': [42]} #todo: change back to 42
+        rc_param_grid = {'random_state': [42]}
 
         lof_param_grid = {'n_neighbors': [10,20,30,40]}
 
@@ -281,8 +281,8 @@ class FairClassifier:
         # RepeatedStratifiedKFold params
         n_splits = 5
         data_portion_in_fold = 1-(1.0/n_splits)
-        n_repeats = 5 #todo: change to 5
-        random_state = 42 #todo: test other random states for RepeatedStratifiedKFold
+        n_repeats = 5
+        random_state = 42
         # #################################################################################################################
         adapt_pred_thresh_for_best_f1 = False
 
