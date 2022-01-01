@@ -192,10 +192,10 @@ class FairClassifier:
 
 
     @staticmethod
-    def build_gridsearch_cv_params(X_train_df:pd.DataFrame):
-        if_param_grid = {'n_estimators': [100, 150],
+    def build_gridsearch_cv_params(num_samples_in_gridsearch_fold:int):
+        if_param_grid = {'n_estimators': [100, 150],#todo: check with eliran if 150 really improves something?
                          'max_samples': ['auto', 0.5],
-                         'contamination': ['auto'],
+                         'contamination': ['auto'],#todo: check with eliran why we set this param ???
                          'max_features': [10, 15],
                          'bootstrap': [True],
                          'n_jobs': [-1]}
@@ -203,13 +203,12 @@ class FairClassifier:
         svm_param_grid = {'kernel': ['rbf'],
                           'gamma': ['auto', 1, 0.1, 0.01, 0.001, 0.0001]}
 
-        rc_param_grid = {'random_state': [1]} #todo: change back to 42
+        rc_param_grid = {'random_state': [42]} #todo: change back to 42
 
-        lof_param_grid = {'n_neighbors': [10, 20, 30],
-                          'novelty': [True]}
+        lof_param_grid = {'n_neighbors': [35]}
 
         rrcf_param_grid = {'num_trees': [100],
-                           'tree_size': [min(512, int(((X_train_df.shape[0]) * 0.8) / 2))]}
+                           'tree_size': [min(512, int(num_samples_in_gridsearch_fold/2))]}
 
         def dict_product(dicts):
             return (dict(zip(dicts.keys(), x)) for x in itertools.product(*dicts.values()))
@@ -280,6 +279,7 @@ class FairClassifier:
         # #################################################################################################################
         # RepeatedStratifiedKFold params
         n_splits = 5
+        data_portion_in_fold = 1-(1.0/n_splits)
         n_repeats = 5
         random_state = 42 #todo: test other random states for RepeatedStratifiedKFold
         # #################################################################################################################
@@ -355,7 +355,7 @@ class FairClassifier:
             'fairxgboost__remove_side': ['only_non_privilaged', 'only_privilaged', 'all'],
             # 'only_privilaged'(A93,A94),'only_non_privilaged'(A91,A92),'all'
             'fairxgboost__data_columns': [tuple(X_train.columns)],
-            'fairxgboost__anomaly_model_params': FairClassifier.build_gridsearch_cv_params(X_train),  # global_params_sets !!!!!!!!!!!!!!!!!!!
+            'fairxgboost__anomaly_model_params': FairClassifier.build_gridsearch_cv_params(num_samples_in_gridsearch_fold= int(data_portion_in_fold*X_train.shape[0])),
             'fairxgboost__snsftr_slctrt_sub_groups': [snsftr_slctrt_sub_groups],
             'fairxgboost__verbose': [verbose],
         }
