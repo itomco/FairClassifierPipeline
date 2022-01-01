@@ -106,38 +106,23 @@ class RobustRandomCutForest():
 
     """
 
-    def __init__(self, *, num_trees=100, tree_size=512):
+    def __init__(self, *, num_trees=100, tree_size=512, contamination:float=0.0):
         print('>> Init RobustRandomCutForest')
         self.num_trees = num_trees
         self.tree_size = tree_size
+        self.contamination = contamination
 
     def fit(self, X, y=None):
-        """
-        Fit estimator.
-        Parameters
-        ----------
-        X : {array-like, sparse matrix} of shape (n_samples, n_features)
-            The input samples. Use ``dtype=np.float32`` for maximum
-            efficiency. Sparse matrices are also supported, use sparse
-            ``csc_matrix`` for maximum efficiency.
-        y : Ignored
-            Not used, present for API consistency by convention.
+        # do nothing :-)
+        # Return the classifier
+        return self
 
-        Returns
-        -------
-        self : object
-            Fitted estimator.
-        """
-        print('>> fit RobustRandomCutForest')
-        # Check that X and y have correct shape
-        X, y = check_X_y(X, y)
-        # Store the classes seen during fit
-        # self.classes_ = unique_labels(y)
+    def set_params(self, **parameters):
+        for parameter, value in parameters.items():
+            setattr(self, parameter, value)
+        return self
 
-        # RRCF parameters
-        self.avg_codisp = []
-        self.epsilon = 0.0001
-
+    def predict(self, X):
         n = len(X)
         forest = []
         # build trees for RRCF
@@ -147,8 +132,7 @@ class RobustRandomCutForest():
                                    size=(1, self.tree_size),  # size=(n // tree_size, tree_size),
                                    replace=True)
             # Add sampled trees to forest
-            trees = [rrcf.RCTree(X[ix] + self.epsilon,
-                                 index_labels=ix) for ix in ixs]
+            trees = [rrcf.RCTree(X[ix], index_labels=ix) for ix in ixs]
             forest.extend(trees)
 
         # Compute average CoDisp
@@ -160,51 +144,11 @@ class RobustRandomCutForest():
             avg_codisp_d[codisp.index] += codisp
             np.add.at(index, codisp.index.values, 1.0)
         avg_codisp_d /= index
-        self.avg_codisp.append(avg_codisp_d)
+        # self.avg_codisp.append(avg_codisp_d)
+        mask=np.percentile(avg_codisp_d,int((1-self.contamination)*100.0))
+        avg_codisp_d[avg_codisp_d <= mask] = 1
+        avg_codisp_d[avg_codisp_d > mask] = -1
 
-        # define a threshold for label 1 and 0 in RRCF algorithm
-        self.avg_cod = self.avg_codisp[-1]
+        return avg_codisp_d
 
-        # Return the classifier
-        return self
-
-    def set_params(self, **parameters):
-        for parameter, value in parameters.items():
-            setattr(self, parameter, value)
-        return self
-
-    def predict(self, X):
-        """
-        Predict if a particular sample is an outlier or not.
-        Parameters
-        ----------
-        X : {array-like, sparse matrix} of shape (n_samples, n_features)
-            The input samples. Internally, it will be converted to
-            ``dtype=np.float32`` and if a sparse matrix is provided
-            to a sparse ``csr_matrix``.
-        Returns
-        -------
-        is_inlier : ndarray of shape (n_samples,)
-            For each observation, tells whether or not (+1 or -1) it should
-            be considered as an inlier according to the fitted model.
-        """
-        check_is_fitted(self)
-        decision_func = self.decision_function(X)
-        is_inlier = np.ones_like(decision_func, dtype=int)
-        is_inlier[decision_func < 0] = -1
-        return is_inlier
-
-    def decision_function(self, X):
-        """
-        Average anomaly score of CoDisp.
-
-        Returns
-        -------
-        scores : ndarray of shape (n_samples,)
-            The anomaly score of the input samples.
-            The lower, the more abnormal. Negative scores represent outliers,
-            positive scores represent inliers.
-        """
-        print('>> decision_function RobustRandomCutForest')
-        return self.avg_cod
 

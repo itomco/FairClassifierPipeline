@@ -530,32 +530,16 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
             print(f'  Algorithm params:{unsupervised_model_params}')
             print(f'  Grid params: anomalies_per_to_remove:{self.anomalies_per_to_remove}, include_sensitive_feature:{self.include_sensitive_feature}, remove_side:{self.remove_side}')
 
+        if algorithm_name.lower() == 'svm':
+            unsupervised_model_params['nu'] = self.anomalies_per_to_remove
+        else:
+            unsupervised_model_params['contamination'] = self.anomalies_per_to_remove
+
         algorithm = anomaly_algorithms[algorithm_name](**unsupervised_model_params)
         algorithm.fit(data_arr, self.y_)
-
-        # ##############################################################################################
-        # get algorithm's score
-        score_series = pd.Series(algorithm.decision_function(data_arr)).sort_values(ascending=True)
-        score_idx = list(score_series.index)
-        if self.verbose:
-            print(f'  Algorithm score:{list(score_series.values)}')
-            if self.do_plots:
-                self.__plot_histogram(list(score_series.values))
-        # ##############################################################################################
-        # remove anomalies by using the selected unsupervised algorithm
-        num_remove_samples = int(len(self.data) * self.anomalies_per_to_remove)
-        anomalies_idx = None
-        if algorithm_name == 'RRCF':
-            anomalies_idx = score_idx[(-1 * num_remove_samples):]
-        else:
-            anomalies_idx = score_idx[:num_remove_samples]
-
-        # if self.verbose:
-        #     print(f'anomalies score:{list(score_series[anomalies_idx].values)}')
-        # print(f'anomalies indexes:{anomalies_idx}')
-        # print(f'{len(anomalies_idx)} anomalies, non anomalies {len(self.data) - len(anomalies_idx)}')
-        # print(self.y_)
-        # print(np.delete(self.y_, anomalies_idx))
+        # #############################################################################################
+        # get anomalies by prediction
+        anomalies_idx = np.where(algorithm.predict(data_arr) == -1)[0].tolist()
         # ##############################################################################################
         # Run XGBoost without anomalies
 
@@ -624,14 +608,11 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
             seen during fit.
         """
         y_pred, y_pred_proba = self.base_clf.predict(clf= self.model,
-                                                            X = X)
+                                                     X = X)
 
         return y_pred
 
     def predict_proba(self, X):
         y_predict, y_pred_proba = self.base_clf.predict(clf= self.model,
-                                                                X = X)
+                                                        X = X)
         return y_pred_proba
-
-    def decision_function(self, X):
-        return self.predict_proba(X)
