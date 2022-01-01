@@ -187,7 +187,7 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
 
 if __name__ == '__main__':
     fairness_metrics = ['AOD','EOD']
-    for project_mode in ['german']:
+    for project_mode in ['bank']:
         # project_mode = 'german' # select 'bank' or 'german'
 
         ####-0 select config

@@ -436,7 +436,7 @@ class AggregatedSubGroupsImputer(BaseEstimator, TransformerMixin):
     ----------    
     group_cols : list
         List of columns used for calculating the aggregated value 
-    columns_to_impute : str
+    columns_to_impute : List
         The name of the columns to impute
     metric : str
         The metric to be used for remplacement, can be one of ['mean', 'median']
@@ -827,6 +827,7 @@ def run_fair_data_preprocess_pipeline(data:pd.DataFrame, config:Dict):
     # https://datatofish.com/numpy-array-to-pandas-dataframe/ - following this tutorial, a numpy array containing multiple types of columns values results with all object array.
     # https://stackoverflow.com/questions/61346021/create-a-mixed-type-pandas-dataframe-using-an-numpy-array-of-type-object
     preprocessed_train_data = preprocessed_train_data.convert_dtypes()
+    preprocessed_train_data = preprocessed_train_data[sorted(list(preprocessed_train_data.columns), reverse=True)]
     utils.save_date_processing_debug(preprocessed_train_data,"INITIAL_preprocessed_train_data")
 
     X_train = preprocessed_train_data.drop(columns=[config['label_col']], axis=1)
@@ -838,7 +839,7 @@ def run_fair_data_preprocess_pipeline(data:pd.DataFrame, config:Dict):
     preprocessed_test_data = ppl.transform(test_df)
     preprocessed_test_data = pd.DataFrame(data=preprocessed_test_data, columns=final_columns)
     preprocessed_test_data = preprocessed_test_data.convert_dtypes()
-
+    preprocessed_test_data = preprocessed_test_data[sorted(list(preprocessed_test_data.columns), reverse=True)]
     utils.save_date_processing_debug(preprocessed_test_data,"INITIAL_preprocessed_test_data")
 
     X_test = preprocessed_test_data.drop(columns=[config['label_col']], axis=1)

@@ -107,7 +107,7 @@ class GermanBaseClf(BaseClf):
             'n_jobs': -1,
             'use_label_encoder': False
         }
-        model_ = XGBClassifier(**XGBClassifier_params)
+        model_ = XGBClassifier(random_state = 42, **XGBClassifier_params)
         if X_test is not None and y_test is not None:
             eval_set = [(X_train, y_train), (X_test, y_test)]
             model_.fit(X=X_train, y=y_train,eval_set=eval_set,
