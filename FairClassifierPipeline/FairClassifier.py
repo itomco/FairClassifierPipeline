@@ -195,7 +195,7 @@ class FairClassifier:
 
     @staticmethod
     def build_gridsearch_cv_params(num_samples_in_gridsearch_fold:int):
-        if_param_grid = {'n_estimators': [100, 200, 300],#todo: check with eliran if 150 really improves something?
+        if_param_grid = {'n_estimators': [100, 200, 300],
                          'max_samples': ['auto', 0.5],
                          'max_features': [5, 10, 15],
                          'bootstrap': [True, False],
