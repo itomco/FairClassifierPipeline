@@ -107,7 +107,7 @@ class RobustRandomCutForest():
     """
 
     def __init__(self, *, num_trees=100, tree_size=512, contamination:float=0.0):
-        print('>> Init RobustRandomCutForest')
+        # print('>> Init RobustRandomCutForest')
         self.num_trees = num_trees
         self.tree_size = tree_size
         self.contamination = contamination

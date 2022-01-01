@@ -56,8 +56,8 @@ from xgboost import XGBClassifier
 
 from pprint import pprint
 
-# import warnings
-# warnings.filterwarnings("ignore", category=DeprecationWarning)
+import warnings
+warnings.filterwarnings("ignore", 'The covariance matrix associated to your dataset is not full rank')
 
 #fairlearn
 from fairlearn.metrics import (

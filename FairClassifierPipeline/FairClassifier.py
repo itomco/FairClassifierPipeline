@@ -8,6 +8,8 @@ import numpy as np
 import sklearn
 from typing import *
 from datetime import datetime
+from tqdm import tqdm
+# tqdm().pandas()
 from collections import OrderedDict
 
 #
@@ -48,7 +50,7 @@ from sklearn.preprocessing import FunctionTransformer
 from sklearn.ensemble import IsolationForest
 from sklearn.svm import OneClassSVM
 from sklearn.neighbors import LocalOutlierFactor
-from sklearn.covariance import EllipticEnvelope
+from sklearn.covariance import EllipticEnvelope, _robust_covariance
 import rrcf
 
 #fairlearn
@@ -193,11 +195,10 @@ class FairClassifier:
 
     @staticmethod
     def build_gridsearch_cv_params(num_samples_in_gridsearch_fold:int):
-        if_param_grid = {'n_estimators': [100, 150],#todo: check with eliran if 150 really improves something?
+        if_param_grid = {'n_estimators': [100, 200, 300],#todo: check with eliran if 150 really improves something?
                          'max_samples': ['auto', 0.5],
-                         'contamination': ['auto'],#todo: check with eliran why we set this param ???
-                         'max_features': [10, 15],
-                         'bootstrap': [True],
+                         'max_features': [5, 10, 15],
+                         'bootstrap': [True, False],
                          'n_jobs': [-1]}
 
         svm_param_grid = {'kernel': ['rbf'],
@@ -205,9 +206,9 @@ class FairClassifier:
 
         rc_param_grid = {'random_state': [42]} #todo: change back to 42
 
-        lof_param_grid = {'n_neighbors': [35]}
+        lof_param_grid = {'n_neighbors': [10,20,30,40]}
 
-        rrcf_param_grid = {'num_trees': [100],
+        rrcf_param_grid = {'num_trees': [100, 200, 400],
                            'tree_size': [min(512, int(num_samples_in_gridsearch_fold/2))]}
 
         def dict_product(dicts):
@@ -280,7 +281,7 @@ class FairClassifier:
         # RepeatedStratifiedKFold params
         n_splits = 5
         data_portion_in_fold = 1-(1.0/n_splits)
-        n_repeats = 5
+        n_repeats = 5 #todo: change to 5
         random_state = 42 #todo: test other random states for RepeatedStratifiedKFold
         # #################################################################################################################
         adapt_pred_thresh_for_best_f1 = False
@@ -292,48 +293,6 @@ class FairClassifier:
         X_train = utils.to_float_df(X_train)
         for train_index, test_index in rskf.split(X_train, y_train):
             grid_search_idx[hash(y_train[test_index].values.tobytes())] = np.copy(test_index)
-
-        def aod_measure(y_true: pd.Series, y_pred:np.ndarray) -> float:
-            sensitive_selected_arr = sensitive_feature_srs.values[grid_search_idx[hash(y_true.values.tobytes())]]
-
-            try:
-                score = FairClassifier.average_odds_difference(y_true=utils.to_int_srs(y_true),
-                                                                  y_pred=utils.to_int_srs(pd.Series(y_pred)),
-                                                                  sensitive_feature_arr=sensitive_selected_arr)
-            except BaseException as e:
-                print(f"Exception raised due to insufficient values for some of the sub groups:\n{pd.Series(sensitive_selected_arr).value_counts()}")
-                score = 20
-
-            if verbose:
-                print(f'AOD Score:{score}')
-            return score
-
-
-        def f1_measure(y_true:pd.Series, y_pred:np.ndarray) -> float:
-            score = f1_score(y_true=utils.to_int_srs(y_true),
-                            y_pred=utils.to_int_srs(pd.Series(y_pred)),
-                            average='macro')
-            if verbose:
-                print(f'macro f1 Score:{score}')
-
-            return score
-
-
-        def eod_measure(y_true: pd.Series, y_pred:np.ndarray) -> float:
-            sensitive_selected_arr = sensitive_feature_srs.values[grid_search_idx[hash(y_true.values.tobytes())]]
-
-            try:
-                score = equalized_odds_difference(utils.to_int_srs(y_true),
-                                                          utils.to_int_srs(pd.Series(y_pred)),
-                                                          sensitive_features=sensitive_selected_arr)
-            except BaseException as e:
-                print(
-                    f"Exception raised due to insufficient values for some of the sub groups:\n{pd.Series(sensitive_selected_arr).value_counts()}")
-                score = 10
-
-            if verbose:
-                print(f'EOD Score:{score}')
-            return score
 
         # def eod_measure(y_true:pd.Series, y_pred:np.ndarray) -> float:
         #     sensitive_selected_arr = sensitive_feature_srs.values[grid_search_idx[hash(y_true.values.tobytes())]]
@@ -359,6 +318,18 @@ class FairClassifier:
             'fairxgboost__snsftr_slctrt_sub_groups': [snsftr_slctrt_sub_groups],
             'fairxgboost__verbose': [verbose],
         }
+        # param_grid = {
+        #     'fairxgboost__base_clf':[base_clf],
+        #     'fairxgboost__anomalies_per_to_remove': [0.35],  # 0.1,0.2 !!!!!!!!!!!!!!!!!!
+        #     'fairxgboost__include_sensitive_feature': [True],  # False
+        #     'fairxgboost__sensitive_col_name': [sensitive_feature_name],
+        #     'fairxgboost__remove_side': ['all'],
+        #     # 'only_privilaged'(A93,A94),'only_non_privilaged'(A91,A92),'all'
+        #     'fairxgboost__data_columns': [tuple(X_train.columns)],
+        #     'fairxgboost__anomaly_model_params': FairClassifier.build_gridsearch_cv_params(num_samples_in_gridsearch_fold= int(data_portion_in_fold*X_train.shape[0])),
+        #     'fairxgboost__snsftr_slctrt_sub_groups': [snsftr_slctrt_sub_groups],
+        #     'fairxgboost__verbose': [verbose],
+        # }
 
         #best standard metirics for imbalanced data is probably fbeta_<x> (f1 is the base case)
         # https://neptune.ai/blog/f1-score-accuracy-roc-auc-pr-auc#2 <--- IMPORTANT REFERENCE !!!
@@ -371,26 +342,76 @@ class FairClassifier:
         # https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.GridSearchCV.html
         # https://hub.gke2.mybinder.org/user/scikit-learn-scikit-learn-s0vnxwm7/lab/tree/notebooks/auto_examples/model_selection/plot_learning_curve.ipynb
         # https://hub.gke2.mybinder.org/user/scikit-learn-scikit-learn-s0vnxwm7/lab/tree/notebooks/auto_examples/model_selection/plot_roc.ipynb
+        pipe_cv = None
 
-        scorers_dict = {'eod':make_scorer(eod_measure, greater_is_better=False),
-                        'aod':make_scorer(aod_measure, greater_is_better=False),
-                        'f1':make_scorer(f1_measure,greater_is_better=True)}
-        refit = target_fairness_metric.lower()
-        assert refit in scorers_dict.keys(), f"gridsearch_cv's parameter 'refit' == '{target_fairness_metric}' (target_fairness_metric) and must be one of the scorrers names"
+        with tqdm(total=len(range(1,26))) as pbar:
 
-        pipe_cv = GridSearchCV(estimator=estimator,
-                               param_grid=param_grid,
-                               cv=rskf,
-                               scoring=scorers_dict,
-                               refit = refit,#for multiple scorers specify the scorer string id (in the scorers dictionary) to use
-                               return_train_score = False,
-                               n_jobs=1)
+            def aod_measure(y_true: pd.Series, y_pred:np.ndarray) -> float:
+                sensitive_selected_arr = sensitive_feature_srs.values[grid_search_idx[hash(y_true.values.tobytes())]]
 
-        t0 = datetime.now()
+                try:
+                    score = FairClassifier.average_odds_difference(y_true=utils.to_int_srs(y_true),
+                                                                      y_pred=utils.to_int_srs(pd.Series(y_pred)),
+                                                                      sensitive_feature_arr=sensitive_selected_arr)
+                except BaseException as e:
+                    print(f"Exception raised due to insufficient values for some of the sub groups:\n{pd.Series(sensitive_selected_arr).value_counts()}")
+                    score = 20
 
-        pipe_cv.fit(X_train, y_train)
+                if verbose:
+                    print(f'AOD Score:{score}')
+                return score
 
-        total_time_secs = datetime.now() -t0
+
+            def f1_measure(y_true:pd.Series, y_pred:np.ndarray) -> float:
+                score = f1_score(y_true=utils.to_int_srs(y_true),
+                                y_pred=utils.to_int_srs(pd.Series(y_pred)),
+                                average='macro')
+                if verbose:
+                    print(f'macro f1 Score:{score}')
+
+                return score
+
+
+            def eod_measure(y_true: pd.Series, y_pred:np.ndarray) -> float:
+                sensitive_selected_arr = sensitive_feature_srs.values[grid_search_idx[hash(y_true.values.tobytes())]]
+
+                try:
+                    score = equalized_odds_difference(utils.to_int_srs(y_true),
+                                                              utils.to_int_srs(pd.Series(y_pred)),
+                                                              sensitive_features=sensitive_selected_arr)
+                except BaseException as e:
+                    print(
+                        f"Exception raised due to insufficient values for some of the sub groups:\n{pd.Series(sensitive_selected_arr).value_counts()}")
+                    score = 10
+
+                if verbose:
+                    print(f'EOD Score:{score}')
+
+                pbar.update(1)
+
+                return score
+
+
+            scorers_dict = {'eod':make_scorer(eod_measure, greater_is_better=False),
+                            'aod':make_scorer(aod_measure, greater_is_better=False),
+                            'f1':make_scorer(f1_measure,greater_is_better=True)}
+            refit = target_fairness_metric.lower()
+            assert refit in scorers_dict.keys(), f"gridsearch_cv's parameter 'refit' == '{target_fairness_metric}' (target_fairness_metric) and must be one of the scorrers names"
+
+            pipe_cv = GridSearchCV(estimator=estimator,
+                                   param_grid=param_grid,
+                                   cv=rskf,
+                                   scoring=scorers_dict,
+                                   refit = refit,#for multiple scorers specify the scorer string id (in the scorers dictionary) to use
+                                   return_train_score = False,
+                                   n_jobs=1)
+
+            t0 = datetime.now()
+
+            # gridsearch_cv fit progress bar: https://towardsdatascience.com/progress-bars-in-python-4b44e8a4c482
+            pipe_cv.fit(X_train, y_train)
+
+            total_time_secs = datetime.now() -t0
         print(f"Gridsearch_cv total run time: {total_time_secs}")
 
         if verbose:
@@ -536,10 +557,14 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
             unsupervised_model_params['contamination'] = self.anomalies_per_to_remove
 
         algorithm = anomaly_algorithms[algorithm_name](**unsupervised_model_params)
-        algorithm.fit(data_arr, self.y_)
+
         # #############################################################################################
         # get anomalies by prediction
-        anomalies_idx = np.where(algorithm.predict(data_arr) == -1)[0].tolist()
+        if algorithm_name.lower() == 'lof':
+            anomalies_idx = np.where(algorithm.fit_predict(data_arr) == -1)[0].tolist()
+        else:
+            algorithm.fit(data_arr)
+            anomalies_idx = np.where(algorithm.predict(data_arr) == -1)[0].tolist()
         # ##############################################################################################
         # Run XGBoost without anomalies
 
