@@ -264,31 +264,6 @@ class FairClassifier:
 
         return sf_fairness_scores_dict_df.index[0].split(':')[0]
 
-    @staticmethod
-    def adapt_pred_thresh_for_best_f1(y_true: pd.Series,
-                                      y_pred: np.ndarray,
-                                      return_f1_thresh:bool = False) -> Union[float,np.ndarray]:
-
-        f1_thresholds = np.arange(0, 1, 0.001)
-
-        # optional implementation - probably slower than using map(..) as done in the following implementation
-        # todo: check which option perform faster
-        # f1_scores = [f1_score(y_true=y_true,
-        #                       y_pred=(y_pred>= t).astype('int'),
-        #                       average='macro')
-        #              for t in f1_thresholds]
-
-        f1_scores = list(map(lambda t: f1_score(  y_true=y_true,
-                                                  y_pred=(y_pred>= t).astype('int'),
-                                                  average='macro'),f1_thresholds))
-
-        best_f1_thresh = f1_thresholds[np.argmax(f1_scores)]
-
-        if return_f1_thresh:
-            return best_f1_thresh
-        else:
-            return (y_pred>= best_f1_thresh).astype('int')
-
 
     @staticmethod
     def run_gridsearch_cv(base_clf:BaseClf,
@@ -305,7 +280,7 @@ class FairClassifier:
         # #################################################################################################################
         # RepeatedStratifiedKFold params
         n_splits = 5
-        n_repeats = 1
+        n_repeats = 5
         random_state = 42 #todo: test other random states for RepeatedStratifiedKFold
         # #################################################################################################################
         adapt_pred_thresh_for_best_f1 = False
@@ -318,13 +293,8 @@ class FairClassifier:
         for train_index, test_index in rskf.split(X_train, y_train):
             grid_search_idx[hash(y_train[test_index].values.tobytes())] = np.copy(test_index)
 
-        def aod_measure(y_true: pd.Series, y_pred:List) -> float:
+        def aod_measure(y_true: pd.Series, y_pred:np.ndarray) -> float:
             sensitive_selected_arr = sensitive_feature_srs.values[grid_search_idx[hash(y_true.values.tobytes())]]
-
-            if y_pred[1]:
-                y_pred = FairClassifier.adapt_pred_thresh_for_best_f1(y_true=y_true, y_pred=y_pred[0])
-            else:
-                y_pred = (y_pred[0] >= 0.5).astype('int')
 
             try:
                 score = FairClassifier.average_odds_difference(y_true=utils.to_int_srs(y_true),
@@ -339,12 +309,7 @@ class FairClassifier:
             return score
 
 
-        def f1_measure(y_true:pd.Series, y_pred:List) -> float:
-            if y_pred[1]:
-                y_pred = FairClassifier.adapt_pred_thresh_for_best_f1(y_true=y_true, y_pred=y_pred[0])
-            else:
-                y_pred = (y_pred[0] >= 0.5).astype('int')
-
+        def f1_measure(y_true:pd.Series, y_pred:np.ndarray) -> float:
             score = f1_score(y_true=utils.to_int_srs(y_true),
                             y_pred=utils.to_int_srs(pd.Series(y_pred)),
                             average='macro')
@@ -354,26 +319,8 @@ class FairClassifier:
             return score
 
 
-        def best_f1_thresh(y_true:pd.Series, y_pred:List) -> float:
-            if y_pred[1]:
-                best_f1_thresh = FairClassifier.adapt_pred_thresh_for_best_f1(y_true=y_true,
-                                                                              y_pred=y_pred[0],
-                                                                              return_f1_thresh=True)
-            else:
-                best_f1_thresh = 0.5 #indicate no request to adapt y_pred for best macro f1
-
-            if verbose:
-                print(f'best_f1_thresh:{best_f1_thresh}')
-
-            return best_f1_thresh
-
-        def eod_measure(y_true: pd.Series, y_pred:List) -> float:
+        def eod_measure(y_true: pd.Series, y_pred:np.ndarray) -> float:
             sensitive_selected_arr = sensitive_feature_srs.values[grid_search_idx[hash(y_true.values.tobytes())]]
-
-            if y_pred[1]:
-                y_pred = FairClassifier.adapt_pred_thresh_for_best_f1(y_true=y_true, y_pred=y_pred[0])
-            else:
-                y_pred = (y_pred[0] >= 0.5).astype('int')
 
             try:
                 score = equalized_odds_difference(utils.to_int_srs(y_true),
@@ -400,32 +347,19 @@ class FairClassifier:
             ('fairxgboost', FairXGBClassifier())])
 
         # Define the parameter grid space
-        # param_grid = {
-        #     'fairxgboost__base_clf':[base_clf],
-        #     'fairxgboost__anomalies_per_to_remove': [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5],  # 0.1,0.2 !!!!!!!!!!!!!!!!!!
-        #     'fairxgboost__include_sensitive_feature': [True, False],  # False
-        #     'fairxgboost__sensitive_col_name': [sensitive_feature_name],
-        #     'fairxgboost__remove_side': ['only_non_privilaged', 'only_privilaged', 'all'],
-        #     # 'only_privilaged'(A93,A94),'only_non_privilaged'(A91,A92),'all'
-        #     'fairxgboost__data_columns': [tuple(X_train.columns)],
-        #     'fairxgboost__anomaly_model_params': FairClassifier.build_gridsearch_cv_params(X_train),  # global_params_sets !!!!!!!!!!!!!!!!!!!
-        #     'fairxgboost__snsftr_slctrt_sub_groups': [snsftr_slctrt_sub_groups],
-        #     'fairxgboost__find_best_f1': [False,True],
-        #     'fairxgboost__verbose': [verbose],
-        # }
         param_grid = {
             'fairxgboost__base_clf':[base_clf],
-            'fairxgboost__anomalies_per_to_remove': [0.35],  # 0.1,0.2 !!!!!!!!!!!!!!!!!!
-            'fairxgboost__include_sensitive_feature': [True],  # False
+            'fairxgboost__anomalies_per_to_remove': [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5],  # 0.1,0.2 !!!!!!!!!!!!!!!!!!
+            'fairxgboost__include_sensitive_feature': [True, False],  # False
             'fairxgboost__sensitive_col_name': [sensitive_feature_name],
-            'fairxgboost__remove_side': ['all'],
+            'fairxgboost__remove_side': ['only_non_privilaged', 'only_privilaged', 'all'],
             # 'only_privilaged'(A93,A94),'only_non_privilaged'(A91,A92),'all'
             'fairxgboost__data_columns': [tuple(X_train.columns)],
             'fairxgboost__anomaly_model_params': FairClassifier.build_gridsearch_cv_params(X_train),  # global_params_sets !!!!!!!!!!!!!!!!!!!
             'fairxgboost__snsftr_slctrt_sub_groups': [snsftr_slctrt_sub_groups],
-            'fairxgboost__find_best_f1': [True],
             'fairxgboost__verbose': [verbose],
         }
+
         #best standard metirics for imbalanced data is probably fbeta_<x> (f1 is the base case)
         # https://neptune.ai/blog/f1-score-accuracy-roc-auc-pr-auc#2 <--- IMPORTANT REFERENCE !!!
 
@@ -440,9 +374,7 @@ class FairClassifier:
 
         scorers_dict = {'eod':make_scorer(eod_measure, greater_is_better=False),
                         'aod':make_scorer(aod_measure, greater_is_better=False),
-                        'f1':make_scorer(f1_measure,greater_is_better=True),
-                        'bst_f1th':make_scorer(best_f1_thresh,greater_is_better=True)
-                        }
+                        'f1':make_scorer(f1_measure,greater_is_better=True)}
         refit = target_fairness_metric.lower()
         assert refit in scorers_dict.keys(), f"gridsearch_cv's parameter 'refit' == '{target_fairness_metric}' (target_fairness_metric) and must be one of the scorrers names"
 
@@ -495,7 +427,7 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
     def __init__(self, base_clf:BaseClf=None, anomalies_per_to_remove:float=None, remove_side:str=None,
                  include_sensitive_feature:bool=None, sensitive_col_name:str=None,
                  data_columns:List=None, anomaly_model_params:Dict=None, snsftr_slctrt_sub_groups:Tuple[Tuple,Tuple]=None,
-                 find_best_f1:bool=False,verbose:bool=True, do_plots:bool=False):
+                 verbose:bool=True, do_plots:bool=False):
 
         self.base_clf = base_clf
         self.anomalies_per_to_remove = anomalies_per_to_remove
@@ -505,7 +437,6 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
         self.data_columns = data_columns
         self.anomaly_model_params = anomaly_model_params
         self.snsftr_slctrt_sub_groups = snsftr_slctrt_sub_groups
-        self.find_best_f1 = find_best_f1
         self.verbose = verbose
         self.do_plots = do_plots
 
@@ -538,7 +469,6 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
                 "data_columns": self.data_columns,
                 "anomaly_model_params": self.anomaly_model_params,
                 "snsftr_slctrt_sub_groups": self.snsftr_slctrt_sub_groups,
-                "find_best_f1":self.find_best_f1,
                 "verbose": self.verbose,
                 "do_plots": self.do_plots}
 
@@ -696,7 +626,7 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
         y_pred, y_pred_proba = self.base_clf.predict(clf= self.model,
                                                             X = X)
 
-        return (y_pred_proba, self.find_best_f1)
+        return y_pred
 
     def predict_proba(self, X):
         y_predict, y_pred_proba = self.base_clf.predict(clf= self.model,
