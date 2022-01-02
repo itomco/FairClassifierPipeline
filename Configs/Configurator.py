@@ -66,7 +66,7 @@ def create_bank_config(config_name:str='bank'):
     save_config(config_name=config_name,config=config)
 
 def save_config(config_name:str,config:Dict):
-    with open(f'configs/{config_name}.json', 'w', encoding='utf-8') as f:
+    with open(f'Configs/{config_name}.json', 'w', encoding='utf-8') as f:
         json.dump(config, f, ensure_ascii=False, indent=4)
 
 
