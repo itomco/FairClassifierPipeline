@@ -140,12 +140,15 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
         plt.ylim(ymax=np.ceil(maxfreq / 10) * 10 if maxfreq % 10 else maxfreq + 10)
 
     def __drop_sensitive_features(self):
-        # remove the sensitive name (eg: 'sex')
-        if self.sensitive_col_name in self.data.columns:
-            return self.data.drop(columns=[self.sensitive_col_name])
-        else:
-            # remove the sensitive columns (eg: 'statussex_A91')
-            return self.data.drop(columns=(list(self.snsftr_slctrt_sub_groups[0])+list(self.snsftr_slctrt_sub_groups[1])))
+        return frns_utils.drop_sensitive_features(sensitive_col_name=self.sensitive_col_name,
+                                           data=self.data,
+                                           snsftr_slctrt_sub_groups = self.snsftr_slctrt_sub_groups)
+        # # remove the sensitive name (eg: 'sex')
+        # if self.sensitive_col_name in self.data.columns:
+        #     return self.data.drop(columns=[self.sensitive_col_name])
+        # else:
+        #     # remove the sensitive columns (eg: 'statussex_A91')
+        #     return self.data.drop(columns=(list(self.snsftr_slctrt_sub_groups[0])+list(self.snsftr_slctrt_sub_groups[1])))
 
     def get_params(self, deep=True):
         # suppose this estimator has parameters "alpha" and "recursive"

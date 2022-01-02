@@ -166,3 +166,13 @@ def get_feature_sub_groups_by_selection_rate(y_true: pd.Series,
 
     return mf2.by_group, (unpriv, priv)
 
+def drop_sensitive_features(sensitive_col_name:str,
+                              data:pd.DataFrame,
+                              snsftr_slctrt_sub_groups:Tuple[Tuple,Tuple]):
+
+    # remove the sensitive name (eg: 'sex')
+    if sensitive_col_name in data.columns:
+        return data.drop(columns=[sensitive_col_name])
+    else:
+        # remove the sensitive columns (eg: 'statussex_A91')
+        return data.drop(columns=(list(snsftr_slctrt_sub_groups[0])+list(snsftr_slctrt_sub_groups[1])))

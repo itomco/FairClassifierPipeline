@@ -401,13 +401,6 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
         :param max_num_top_models: Maximum top models to retrain
         :return:List[{model_index_in_pipe_cv:value,metric_name:value,..}]
         '''
-
-        X_test_sensitive_feature_srs = frns_utils.get_feature_col_from_preprocessed_data(feature_name=self.sensitive_feature_name,
-                                                                                        data=X_test)
-
-        non_privilage_group = self.snsftr_slctrt_sub_groups[0]
-        privilage_group = self.snsftr_slctrt_sub_groups[1]
-
         assert self._is_fitted, 'cannot perform refit before fitting'
         performance_metrics = [x.lower() for x in performance_metrics]
         not_supported_metrics = set(performance_metrics) - set(self.supported_metrics)
@@ -443,6 +436,11 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
         elif verbose:
             print(f"Start computing models performance results for {top_models_results.shape[0]} top models ...")
 
+        non_privilage_group = self.snsftr_slctrt_sub_groups[0]
+        privilage_group = self.snsftr_slctrt_sub_groups[1]
+        X_test_sensitive_feature_srs = frns_utils.get_feature_col_from_preprocessed_data(feature_name=self.sensitive_feature_name,
+                                                                                        data=X_test)
+
         result = []
         for index in list(top_models_results.index):
             #1. remove sensitive feature if required
@@ -450,7 +448,10 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
 
             X_train_to_use = X_train.copy()
             if include_sensitive_feature == False:
-                X_train_to_use = X_train.drop(columns=self.sensitive_feature_name)
+                X_train_to_use = frns_utils.drop_sensitive_features(  sensitive_col_name=self.sensitive_feature_name,
+                                                                      data=X_train,
+                                                                      snsftr_slctrt_sub_groups=self.snsftr_slctrt_sub_groups)
+                # X_train_to_use = X_train.drop(columns=self.sensitive_feature_name)
 
             #2. perform anomaly semples detection and removal strategy on X_train_to_use
             anomaly_model_params = top_models_results['param_fairxgboost__anomaly_model_params'][index]
