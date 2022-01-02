@@ -194,11 +194,9 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
         # ##############################################################################################
         # Check improvement in drops the sensitive columns
         # ##############################################################################################
+        data_arr = self.data.to_numpy()
         if self.include_sensitive_feature == False:
             data_arr = self.__drop_sensitive_features()
-
-        data_arr = self.data.to_numpy()
-
         # ##############################################################################################
         # Outlier detectors from sklean and RRCF
         anomaly_algorithms = {
