@@ -411,13 +411,12 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
         assert len(not_supported_metrics) == 0, f'the performance_metrics are not supported: {not_supported_metrics}'
         assert (0 <= np.array(list(target_metrics_thresholds.values()))).all() and (np.array(list(target_metrics_thresholds.values())) <=1).all(), 'target_metrics_thresholds can get values between 0 to 1'
 
+        top_models_results = pretrained_pipe_cv_df
+        if top_models_results is None:
+            top_models_results = pd.DataFrame(self._pipe_cv.cv_results_)
+
         if max_num_top_models > len(self._pipe_cv.cv_results_):
             max_num_top_models = len(self._pipe_cv.cv_results_)
-
-        if pretrained_pipe_cv_df is not None:
-            top_models_results = pretrained_pipe_cv_df
-        else:
-            top_models_results = pd.DataFrame(self._pipe_cv.cv_results_)
 
         for target_metric_name, target_metric_value_threshold in target_metrics_thresholds.items():
             target_metric_col = f'mean_test_{target_metric_name.lower()}'
