@@ -146,7 +146,7 @@ def get_fairness_score_for_sensitive_features(sensitive_features_names: List[str
 def get_feature_sub_groups_by_selection_rate(y_true: pd.Series,
                                              y_pred: pd.Series,
                                              sensitive_feature_srs: pd.Series):
-    metrics_dict = {"accuracy": accuracy_score, "selection_rate": selection_rate}
+    metrics_dict = {"selection_rate": selection_rate}
 
     mf2 = MetricFrame(
         metrics=metrics_dict,

@@ -33,8 +33,12 @@
     },
     "numeric_to_ord_cat": {
         "age": [
-            30,
-            60
+            28,
+            38,
+            48,
+            58,
+            68,
+            78
         ]
     },
     "max_sparse_col_threshold": 0.8,

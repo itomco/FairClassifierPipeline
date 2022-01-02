@@ -424,7 +424,7 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
                                                          X_test:pd.DataFrame,
                                                          y_test:pd.Series,
                                                          target_metrics_thresholds:Dict,
-                                                         performance_metrics:List=['aod','eod','f1'],
+                                                         performance_metrics:List=('aod','eod','f1'),
                                                          max_num_top_models:int=100,
                                                          verbose:bool=False):
         '''
@@ -436,8 +436,13 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
         :return:List[{model_index_in_pipe_cv:value,metric_name:value,..}]
         '''
         assert self._is_fitted, 'cannot perform refit before fitting'
-        performance_metrics = [x.lower() for x in performance_metrics]
+
+        if performance_metrics is None:
+            performance_metrics = self.supported_metrics
+        else:
+            performance_metrics = [x.lower() for x in performance_metrics]
         not_supported_metrics = set(performance_metrics) - set(self.supported_metrics)
+
         assert len(not_supported_metrics) == 0, f'the performance_metrics are not supported: {not_supported_metrics}'
         assert (0 <= np.array(list(target_metrics_thresholds.values()))).all() and (np.array(list(target_metrics_thresholds.values())) <=1).all(), 'target_metrics_thresholds can get values between 0 to 1'
 

@@ -241,7 +241,7 @@ if __name__ == '__main__':
         sensitive_feature_srs = frns_utils.get_feature_col_from_preprocessed_data(feature_name=sensitive_feature,
                                                                                 data= X_train)
         snsftr_groups_slctnrt_and_acc, snsftr_slctrt_sub_groups = \
-            frns_utils.get_feature_sub_groups_by_selection_rate(   y_true= y_train,
+            frns_utils.get_feature_sub_groups_by_selection_rate( y_true= y_train,
                                                                  y_pred= y_pred,
                                                                  sensitive_feature_srs = sensitive_feature_srs)
 
@@ -285,6 +285,6 @@ if __name__ == '__main__':
                                                                                                                        'f1':1.0})
 
         print(top_models_scores_on_test)
-        top_models_scores_on_test_df = pd.DataFrame(top_models_scores_on_test)
+        top_models_scores_on_test_df = pd.DataFrame(top_models_scores_on_test).sort_values(by=[target_fairness_metric.lower(),'f1'])
         print(top_models_scores_on_test_df)
         top_models_scores_on_test_df.to_csv(f'./gscv_results/{datetime_tag}_{project_mode}_{target_fairness_metric}_top_models_scores_on_test_df.csv')
