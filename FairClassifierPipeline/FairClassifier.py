@@ -395,7 +395,6 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
                                                          target_metrics_thresholds:Dict,
                                                          performance_metrics:List=['aod','eod','f1'],
                                                          max_num_top_models:int=100,
-                                                         pretrained_pipe_cv_df:pd.DataFrame=None,
                                                          verbose:bool=False):
         '''
 
@@ -411,9 +410,7 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
         assert len(not_supported_metrics) == 0, f'the performance_metrics are not supported: {not_supported_metrics}'
         assert (0 <= np.array(list(target_metrics_thresholds.values()))).all() and (np.array(list(target_metrics_thresholds.values())) <=1).all(), 'target_metrics_thresholds can get values between 0 to 1'
 
-        top_models_results = pretrained_pipe_cv_df
-        if top_models_results is None:
-            top_models_results = pd.DataFrame(self._pipe_cv.cv_results_)
+        top_models_results = pd.DataFrame(self._pipe_cv.cv_results_)
 
         if max_num_top_models > len(self._pipe_cv.cv_results_):
             max_num_top_models = len(self._pipe_cv.cv_results_)
