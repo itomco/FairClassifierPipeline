@@ -79,7 +79,8 @@ from BaseClassifiers.BaseClf import BaseClf
 from BaseClassifiers import BaseClfCreator
 # from BaseClassifiers import GermanCreditBaseClf as base_clf
 # from BaseClassifiers.GermanCreditBaseClf import GermanBaseClf as base_clf_class
-from FairClassifierPipeline.FairClassifier import FairClassifier as fair_clf
+from FairClassifierPipeline.FairClassifier import FairClassifier
+from FairClassifierPipeline import FairnessUtils as frns_utils
 from Configs import Configurator as cfg
 from Data import DataLoader as data_loader
 # print(xgboost.__version__)
@@ -127,7 +128,7 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
         #base model
         for frns_mtrc in fairness_metrics:
             frns_mtrc = frns_mtrc.lower()
-            snsftr_eods_w_base_preprocess.update(fair_clf.get_fairness_score_for_sensitive_features(sensitive_features_names= [sf],
+            snsftr_eods_w_base_preprocess.update(frns_utils.get_fairness_score_for_sensitive_features(sensitive_features_names= [sf],
                                                                                                     fairness_metric=frns_mtrc,
                                                                                                     y_true=base_y_test,
                                                                                                     y_pred=pd.Series(base_y_pred),
@@ -162,7 +163,7 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
         utils.print_confusion_matrix(utils.to_int_srs(initial_y_test),initial_y_pred, initial_y_pred_proba)
 
         for frns_mtrc in fairness_metrics:
-            snsftr_eods_w_fair_pipeline.update(fair_clf.get_fairness_score_for_sensitive_features(sensitive_features_names = [sf],
+            snsftr_eods_w_fair_pipeline.update(frns_utils.get_fairness_score_for_sensitive_features(sensitive_features_names = [sf],
                                                                                                   fairness_metric=frns_mtrc,
                                                                                                   y_true=initial_y_test,
                                                                                                   y_pred=pd.Series(initial_y_pred),
@@ -187,7 +188,7 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
 
 if __name__ == '__main__':
     fairness_metrics = ['AOD','EOD']
-    for project_mode in ['bank']:
+    for project_mode in ['german']:
         # project_mode = 'german' # select 'bank' or 'german'
 
         ####-0 select config
@@ -209,7 +210,7 @@ if __name__ == '__main__':
         ####-4. search for most fairness biased sensitive feature
         target_fairness_metric = 'AOD'
 
-        sensitive_feature = fair_clf.get_most_biased_sensitive_feature(data=data.copy(),
+        sensitive_feature = FairClassifier.get_most_biased_sensitive_feature(data=data.copy(),
                                                                        fairness_metric=target_fairness_metric,
                                                                        base_clf=base_clf,
                                                                        config=config)
@@ -237,10 +238,10 @@ if __name__ == '__main__':
                                                       X=X_train)
         y_pred = utils.to_int_srs(pd.Series(y_pred))
 
-        sensitive_feature_srs = fair_clf.get_feature_col_from_preprocessed_data(feature_name=sensitive_feature,
+        sensitive_feature_srs = frns_utils.get_feature_col_from_preprocessed_data(feature_name=sensitive_feature,
                                                                                 data= X_train)
         snsftr_groups_slctnrt_and_acc, snsftr_slctrt_sub_groups = \
-            fair_clf.get_feature_sub_groups_by_selection_rate(   y_true= y_train,
+            frns_utils.get_feature_sub_groups_by_selection_rate(   y_true= y_train,
                                                                  y_pred= y_pred,
                                                                  sensitive_feature_srs = sensitive_feature_srs)
 
@@ -248,24 +249,25 @@ if __name__ == '__main__':
         print(f"snsftr_groups_slctnrt_and_acc:\n{snsftr_groups_slctnrt_and_acc}\n")
 
         ####-6. run gridsearch_cv with anomaly samples removal
-        pipe_cv = fair_clf.run_gridsearch_cv(base_clf=base_clf,
-                                                   X_train = X_train,
-                                                   y_train = y_train,
-                                                   target_fairness_metric = target_fairness_metric,
-                                                   sensitive_feature_name = sensitive_feature,
-                                                   sensitive_feature_srs = sensitive_feature_srs,
-                                                   snsftr_slctrt_sub_groups = snsftr_slctrt_sub_groups,
-                                                   verbose=False)
+        fair_clf = FairClassifier(target_fairness_metric = target_fairness_metric,
+                                   base_clf=base_clf,
+                                   verbose=False)
 
+        fair_clf.fit(X_train = X_train,
+                     y_train = y_train,
+                     sensitive_feature_name=sensitive_feature,
+                     snsftr_slctrt_sub_groups=snsftr_slctrt_sub_groups)
+
+        pipe_cv = fair_clf.pipe_cv
         results = pd.DataFrame(pipe_cv.cv_results_)
         datetime_tag = datetime.now().strftime("%y%m%d_%H%M%S")
         results.to_csv(f'./gscv_results/{datetime_tag}_{project_mode}.csv')
         print(f'results:\n{results}')
 
-        y_pred = pipe_cv.predict(X_test)
-        y_pred = utils.to_int_srs(pd.Series(y_pred))
+        y_pred = fair_clf.predict(X_test)
+        # y_pred = utils.to_int_srs(pd.Series(y_pred))
 
-        best_fair_clf_model = fair_clf.get_fairness_score_for_sensitive_features(sensitive_features_names=[sensitive_feature],
+        best_fair_clf_model = frns_utils.get_fairness_score_for_sensitive_features(sensitive_features_names=[sensitive_feature],
                                                                            fairness_metric=target_fairness_metric,
                                                                            y_true=y_test,
                                                                            y_pred=y_pred,
@@ -273,4 +275,14 @@ if __name__ == '__main__':
 
         print(f"best_fair_clf_model: {best_fair_clf_model}")
         print(classification_report(y_test, pd.Series(y_pred), digits=4))
-        momo=10
+
+        top_models_scores_on_test = fair_clf.retrain_top_models_and_get_performance_metrics(X_train=X_train,
+                                                                                            y_train=y_train,
+                                                                                            X_test=X_test,
+                                                                                            y_test=y_test,
+                                                                                            target_metrics_thresholds={target_fairness_metric:0,
+                                                                                                                       'f1':0.6})
+
+        print(top_models_scores_on_test)
+        top_models_scores_on_test_df = pd.DataFrame(top_models_scores_on_test)
+        print(top_models_scores_on_test_df)

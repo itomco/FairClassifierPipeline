@@ -73,6 +73,7 @@ from fairlearn.metrics import (
 import itertools
 from FairClassifierPipeline.FairClassifier import FairClassifier as fair_clf
 from FairClassifierPipeline import Utils as utils
+from FairClassifierPipeline import FairnessUtils as frns_utils
 
 ################# Types handling functions ###########################
 
@@ -159,12 +160,10 @@ def remove_low_data_columns(df : pd.DataFrame, threshold = 0.8) -> pd.DataFrame:
 #FunctionTransformer(remove_low_data_columns,kw_args={'threshold':0.8}).fit_transform(data).head(3)            
 
 #IMPORTANT!! - remove samples with no value label column
-def remove_columns_wo_label(df : pd.DataFrame, label_col_name:str) -> pd.DataFrame:
+def remove_rows_wo_value_for_column(df : pd.DataFrame, label_col_name:str) -> pd.DataFrame:
     return df.loc[~df[label_col_name].isna()].copy()
 
 # https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.FunctionTransformer.html?highlight=functiontransformer#sklearn.preprocessing.FunctionTransformer
-
-#remove_columns_wo_label_FT = FunctionTransformer(remove_columns_wo_label)
 
 def convert_numeric_cols_to_ord_cat(df : pd.DataFrame, cont_to_cat_cols_settings:Dict[str,List[int]]):
     df = df.copy()
@@ -702,35 +701,39 @@ def get_columns_transformer(config:Dict) -> FeatureUnion:
     return categorical_numerical_preprocessor
 
 def create_pipeline(config:Dict) -> pipe:
-    # SUPER IMPORTANT !! - remove_missing_data_columns_FT and remove_numeric_str_stabs_FT returns 
-    # pandas DataFrame stracture, rather than a numpy array. This way we manage to reach 
-    # categorical_numerical_preprocessor with named columns data stracture that, when using 
+    # SUPER IMPORTANT !! - remove_low_data_columns and numeric_str_feature_encoder returns
+    # pandas DataFrame structure, rather than a numpy array. This way we manage to reach
+    # categorical_numerical_preprocessor with named columns data structure that, when using
     # "FeatureUnion" for the categorical_numerical_preprocessor, it enables CategoricalColsExtractor 
     # and NonCategoricalColsExtractor to extract the relevant columns (categorical and non categorical) 
     # directly from the received DataFrame passed internally in the pipeline process, rather than from the 
     # initial data DataFrame given in the initial phase of the pipeline (that is, using this approach 
-    # we're not relying on the assumption that the already processed data stracture, passed in the pipline, 
+    # we're not relying on the assumption that the already processed data structure, passed in the pipline,
     # has the same columns as in the preprocessed (i.e.initial) data DataFrame).
     #This way our code is much more generic and enables further transformations prior to 
     # categorical_numerical_preprocessor even such that changes the columns set (e.g. add / remove)
     ppl = pipe(steps=
            [
-           ('remove_columns_wo_label', FunctionTransformer(remove_columns_wo_label,
-                                                           kw_args={'label_col_name': config['label_col']})),
+           ('remove_rows_wo_label_value', FunctionTransformer(remove_rows_wo_value_for_column,
+                                                        kw_args={'label_col_name': config['label_col']})),
            ('remove_sparse_columns', FunctionTransformer(remove_low_data_columns,
                                                          kw_args={'threshold': config['max_sparse_col_threshold']})),
             ('trim_numeric_str_stabs',FunctionTransformer(numeric_str_feature_encoder,
                                                           kw_args={'numerical_str_features_stubs':config['numerical_str_features_stubs']})),
             ('convert_numeric_cols_to_ord_cat',FunctionTransformer(convert_numeric_cols_to_ord_cat,
                                                                    kw_args={'cont_to_cat_cols_settings':config['numeric_to_ord_cat']})),
-            #sensitive feature imputer is added (just in case) though in most cases it is more reasonable 
-            # to remove rows with missing values in this feature before the data imputation stage
-            ('imputer_sf',AggregatedSubGroupsImputer(strategy='most_frequent', 
-                                                     group_cols = [config['label_col']], 
-                                                     columns_to_impute=[config['sensitive_feature']], 
-                                                     add_indicator=True)),            
-            ('categorical_numerical_preprocessor', get_columns_transformer(config))
-           ])   
+            #we remove rows with out value (i.e. null) in the sensitive feature column but in
+            # some cases it might be relevant to consider using AggregatedSubGroupsImputer to
+            # impute values based on the label (i.e. classification groups) as follows:
+            # ('imputer_sf',AggregatedSubGroupsImputer(strategy='most_frequent',
+            #                                          group_cols = [config['label_col']],
+            #                                          columns_to_impute=[config['sensitive_feature']],
+            #                                          add_indicator=True)),
+            # ('categorical_numerical_preprocessor', get_columns_transformer(config))
+           ('remove_rows_wo_sensitive_feature_value',FunctionTransformer(remove_rows_wo_value_for_column,
+                                                           kw_args={'label_col_name': config['sensitive_feature']})),
+           ('categorical_numerical_preprocessor', get_columns_transformer(config))
+           ])
     
     return ppl
 
@@ -784,7 +787,7 @@ def split_data(data:pd.DataFrame, config:Dict, stratify_mode:str='full'):
     rs = 111
     sensitive_feature_col = None
     if stratify_mode in ['sensitive_feature','full']:
-        sensitive_feature_col = fair_clf.get_feature_col_from_preprocessed_data(feature_name=config['sensitive_feature'],
+        sensitive_feature_col = frns_utils.get_feature_col_from_preprocessed_data(feature_name=config['sensitive_feature'],
                                                                             data=data)
 
     # data['stratify_col'] = [str(lbl)+str(sstv) for lbl, sstv in zip(data[config['label_col']],data[config['sensitive_feature']])]
