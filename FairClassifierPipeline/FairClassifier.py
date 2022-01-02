@@ -8,8 +8,6 @@ import numpy as np
 import sklearn
 from typing import *
 from datetime import datetime
-from tqdm import tqdm
-# tqdm().pandas()
 from collections import OrderedDict
 
 #
@@ -78,6 +76,13 @@ from BaseClassifiers.BaseClf import BaseClf
 from FairClassifierPipeline.FairXGBClassifier import FairXGBClassifier
 from FairClassifierPipeline import FairnessUtils as frns_utils
 from pprint import pprint
+
+#import the proper progress bar - there are different types for iphthon (i.e. jupyter) and simple python interpreter
+if utils.in_ipynb():
+    from tqdm.notebook import tqdm
+    tqdm().pandas()
+else:
+    from tqdm import tqdm
 
 # import warnings
 # warnings.filterwarnings("ignore", category=DeprecationWarning)

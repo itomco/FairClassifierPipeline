@@ -150,3 +150,13 @@ def get_roc (y_test,y_pred):
     # plt.legend(loc="upper left")
     # plt.show()
     return(fpr, tpr, roc_auc)
+
+def in_ipynb():
+    try:
+        cfg = get_ipython().config
+        if cfg['IPKernelApp']['parent_appname'] == 'ipython-notebook':
+            return True
+        else:
+            return False
+    except NameError:
+        return False
