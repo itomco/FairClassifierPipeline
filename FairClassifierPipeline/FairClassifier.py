@@ -448,7 +448,7 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
 
             X_train_to_use = X_train.copy()
             if include_sensitive_feature == False:
-                X_train_to_use = frns_utils.drop_sensitive_features(  sensitive_col_name=self.sensitive_feature_name,
+                X_train_to_use = frns_utils.drop_sensitive_feature(  sensitive_col_name=self.sensitive_feature_name,
                                                                       data=X_train,
                                                                       snsftr_slctrt_sub_groups=self.snsftr_slctrt_sub_groups)
                 # X_train_to_use = X_train.drop(columns=self.sensitive_feature_name)

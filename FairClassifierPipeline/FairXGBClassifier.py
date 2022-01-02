@@ -139,10 +139,7 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
         # Set a clean upper y-axis limit.
         plt.ylim(ymax=np.ceil(maxfreq / 10) * 10 if maxfreq % 10 else maxfreq + 10)
 
-    def __drop_sensitive_features(self):
-        return frns_utils.drop_sensitive_features(sensitive_col_name=self.sensitive_col_name,
-                                           data=self.data,
-                                           snsftr_slctrt_sub_groups = self.snsftr_slctrt_sub_groups)
+    # def __drop_sensitive_features(self):
         # # remove the sensitive name (eg: 'sex')
         # if self.sensitive_col_name in self.data.columns:
         #     return self.data.drop(columns=[self.sensitive_col_name])
@@ -199,7 +196,9 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
         # ##############################################################################################
         data_arr = self.data.to_numpy()
         if self.include_sensitive_feature == False:
-            data_arr = self.__drop_sensitive_features()
+            data_arr = frns_utils.drop_sensitive_feature( sensitive_col_name=self.sensitive_col_name,
+                                                           data=self.data,
+                                                           snsftr_slctrt_sub_groups = self.snsftr_slctrt_sub_groups)
         # ##############################################################################################
         # Outlier detectors from sklean and RRCF
         anomaly_algorithms = {
