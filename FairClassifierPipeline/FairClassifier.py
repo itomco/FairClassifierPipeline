@@ -78,11 +78,9 @@ from FairClassifierPipeline import FairnessUtils as frns_utils
 from pprint import pprint
 
 #import the proper progress bar - there are different types for iphthon (i.e. jupyter) and simple python interpreter
-if utils.in_ipynb():
-    from tqdm.notebook import tqdm
-    tqdm().pandas()
-else:
-    from tqdm import tqdm
+# from tqdm.notebook import tqdm
+# tqdm().pandas()
+from tqdm import tqdm
 
 # import warnings
 # warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -397,6 +395,7 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
                                                          target_metrics_thresholds:Dict,
                                                          performance_metrics:List=['aod','eod','f1'],
                                                          max_num_top_models:int=100,
+                                                         pretrained_pipe_cv_df:pd.DataFrame=None,
                                                          verbose:bool=False):
         '''
 
@@ -415,7 +414,11 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
         if max_num_top_models > len(self._pipe_cv.cv_results_):
             max_num_top_models = len(self._pipe_cv.cv_results_)
 
-        top_models_results = pd.DataFrame(self._pipe_cv.cv_results_)
+        if pretrained_pipe_cv_df is not None:
+            top_models_results = pretrained_pipe_cv_df
+        else:
+            top_models_results = pd.DataFrame(self._pipe_cv.cv_results_)
+
         for target_metric_name, target_metric_value_threshold in target_metrics_thresholds.items():
             target_metric_col = f'mean_test_{target_metric_name.lower()}'
 

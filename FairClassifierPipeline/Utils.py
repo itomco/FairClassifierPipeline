@@ -151,12 +151,18 @@ def get_roc (y_test,y_pred):
     # plt.show()
     return(fpr, tpr, roc_auc)
 
-def in_ipynb():
-    try:
-        cfg = get_ipython().config
-        if cfg['IPKernelApp']['parent_appname'] == 'ipython-notebook':
-            return True
-        else:
-            return False
-    except NameError:
-        return False
+# def in_ipynb():
+#     try:
+#         from ipython import get_ipython
+#         cfg = get_ipython().config
+#         if cfg['IPKernelApp']['parent_appname'] == 'ipython-notebook':
+#             print('Running in jupyter')
+#             return True
+#         if 'google.colab' in str(get_ipython()):
+#             print('Running on CoLab')
+#             return True
+#         else:
+#             return False
+#             print("Running in python interpreter/")
+#     except BaseException as e:
+#         return False
