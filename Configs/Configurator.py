@@ -58,7 +58,7 @@ def create_bank_config(config_name:str='bank'):
         # 'poutcome':['failure','other','unknown','success']
     }
 
-    config['numeric_to_ord_cat'] = {'age': [30, 60]}
+    config['numeric_to_ord_cat'] = {'age': [28, 38, 48, 58, 68, 78]}
 
     config['max_sparse_col_threshold'] = 0.8
     config['data_path'] = './Data/bank.csv'

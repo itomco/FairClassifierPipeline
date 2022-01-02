@@ -261,7 +261,7 @@ if __name__ == '__main__':
         pipe_cv = fair_clf.pipe_cv
         results = pd.DataFrame(pipe_cv.cv_results_)
         datetime_tag = datetime.now().strftime("%y%m%d_%H%M%S")
-        results.to_csv(f'./gscv_results/{datetime_tag}_{project_mode}.csv')
+        results.to_csv(f'./gscv_results/{datetime_tag}_{project_mode}_{target_fairness_metric}_pipe_cv.cv_results_.csv')
         print(f'results:\n{results}')
 
         y_pred = fair_clf.predict(X_test)
@@ -280,9 +280,11 @@ if __name__ == '__main__':
                                                                                             y_train=y_train,
                                                                                             X_test=X_test,
                                                                                             y_test=y_test,
-                                                                                            target_metrics_thresholds={target_fairness_metric:0.25,
-                                                                                                                       'f1':0.6})
+                                                                                            max_num_top_models=180,
+                                                                                            target_metrics_thresholds={target_fairness_metric:0.0,
+                                                                                                                       'f1':1.0})
 
         print(top_models_scores_on_test)
         top_models_scores_on_test_df = pd.DataFrame(top_models_scores_on_test)
         print(top_models_scores_on_test_df)
+        top_models_scores_on_test_df.to_csv(f'./gscv_results/{datetime_tag}_{project_mode}_{target_fairness_metric}_top_models_scores_on_test_df.csv')
