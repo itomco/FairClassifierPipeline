@@ -280,7 +280,7 @@ if __name__ == '__main__':
                                                                                             y_train=y_train,
                                                                                             X_test=X_test,
                                                                                             y_test=y_test,
-                                                                                            target_metrics_thresholds={target_fairness_metric:0,
+                                                                                            target_metrics_thresholds={target_fairness_metric:0.25,
                                                                                                                        'f1':0.6})
 
         print(top_models_scores_on_test)

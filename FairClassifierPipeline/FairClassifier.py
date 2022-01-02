@@ -421,10 +421,10 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
             greater_target_metric_value_is_better = bool(top_models_results[target_metric_col].mean() > 0)
             ascending = False if greater_target_metric_value_is_better else True
 
-            if greater_target_metric_value_is_better:
+            if greater_target_metric_value_is_better and target_metric_value_threshold > 0.0:
                 top_models_results = top_models_results.loc[top_models_results[target_metric_col] > target_metric_value_threshold]
-            if (greater_target_metric_value_is_better == False):
-                top_models_results = top_models_results.loc[-1.0*top_models_results[target_metric_col] > target_metric_value_threshold]
+            if (greater_target_metric_value_is_better == False) and target_metric_value_threshold < 1.0:
+                top_models_results = top_models_results.loc[-1.0*top_models_results[target_metric_col] < target_metric_value_threshold]
 
             top_models_results = top_models_results.sort_values(by=target_metric_col,ascending=ascending).head(max_num_top_models)
 
