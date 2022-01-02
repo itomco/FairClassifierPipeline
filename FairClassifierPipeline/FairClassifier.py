@@ -195,20 +195,35 @@ class FairClassifier:
 
     @staticmethod
     def build_gridsearch_cv_params(num_samples_in_gridsearch_fold:int):
-        if_param_grid = {'n_estimators': [100, 200, 300],
-                         'max_samples': ['auto', 0.5],
-                         'max_features': [5, 10, 15],
-                         'bootstrap': [True, False],
+        # if_param_grid = {'n_estimators': [100, 200, 300],
+        #                  'max_samples': ['auto', 0.5],
+        #                  'max_features': [5, 10, 15],
+        #                  'bootstrap': [True, False],
+        #                  'n_jobs': [-1]}
+        #
+        # svm_param_grid = {'kernel': ['rbf'],
+        #                   'gamma': ['auto', 1, 0.1, 0.01, 0.001, 0.0001]}
+        #
+        # rc_param_grid = {'random_state': [42]}
+        #
+        # lof_param_grid = {'n_neighbors': [10,20,30,40]}
+        #
+        # rrcf_param_grid = {'num_trees': [100, 200, 400],
+        #                    'tree_size': [min(512, int(num_samples_in_gridsearch_fold/2))]}
+        if_param_grid = {'n_estimators': [100],
+                         'max_samples': [0.5],
+                         'max_features': [10],
+                         'bootstrap': [True],
                          'n_jobs': [-1]}
 
         svm_param_grid = {'kernel': ['rbf'],
-                          'gamma': ['auto', 1, 0.1, 0.01, 0.001, 0.0001]}
+                          'gamma': [0.1]}
 
         rc_param_grid = {'random_state': [42]}
 
-        lof_param_grid = {'n_neighbors': [10,20,30,40]}
+        lof_param_grid = {'n_neighbors': [40]}
 
-        rrcf_param_grid = {'num_trees': [100, 200, 400],
+        rrcf_param_grid = {'num_trees': [400],
                            'tree_size': [min(512, int(num_samples_in_gridsearch_fold/2))]}
 
         def dict_product(dicts):
@@ -306,30 +321,35 @@ class FairClassifier:
             ('fairxgboost', FairXGBClassifier())])
 
         # Define the parameter grid space
-        param_grid = {
-            'fairxgboost__base_clf':[base_clf],
-            'fairxgboost__anomalies_per_to_remove': [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5],  # 0.1,0.2 !!!!!!!!!!!!!!!!!!
-            'fairxgboost__include_sensitive_feature': [True, False],  # False
-            'fairxgboost__sensitive_col_name': [sensitive_feature_name],
-            'fairxgboost__remove_side': ['only_non_privilaged', 'only_privilaged', 'all'],
-            # 'only_privilaged'(A93,A94),'only_non_privilaged'(A91,A92),'all'
-            'fairxgboost__data_columns': [tuple(X_train.columns)],
-            'fairxgboost__anomaly_model_params': FairClassifier.build_gridsearch_cv_params(num_samples_in_gridsearch_fold= int(data_portion_in_fold*X_train.shape[0])),
-            'fairxgboost__snsftr_slctrt_sub_groups': [snsftr_slctrt_sub_groups],
-            'fairxgboost__verbose': [verbose],
-        }
         # param_grid = {
         #     'fairxgboost__base_clf':[base_clf],
-        #     'fairxgboost__anomalies_per_to_remove': [0.35],  # 0.1,0.2 !!!!!!!!!!!!!!!!!!
-        #     'fairxgboost__include_sensitive_feature': [True],  # False
+        #     'fairxgboost__anomalies_per_to_remove': [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5],  # 0.1,0.2 !!!!!!!!!!!!!!!!!!
+        #     'fairxgboost__include_sensitive_feature': [True, False],  # False
         #     'fairxgboost__sensitive_col_name': [sensitive_feature_name],
-        #     'fairxgboost__remove_side': ['all'],
+        #     'fairxgboost__remove_side': ['only_non_privilaged', 'only_privilaged', 'all'],
         #     # 'only_privilaged'(A93,A94),'only_non_privilaged'(A91,A92),'all'
         #     'fairxgboost__data_columns': [tuple(X_train.columns)],
         #     'fairxgboost__anomaly_model_params': FairClassifier.build_gridsearch_cv_params(num_samples_in_gridsearch_fold= int(data_portion_in_fold*X_train.shape[0])),
         #     'fairxgboost__snsftr_slctrt_sub_groups': [snsftr_slctrt_sub_groups],
         #     'fairxgboost__verbose': [verbose],
         # }
+        param_grid = {
+            'fairxgboost__base_clf':[base_clf],
+            'fairxgboost__anomalies_per_to_remove': [0.35],  # 0.1,0.2 !!!!!!!!!!!!!!!!!!
+            'fairxgboost__include_sensitive_feature': [True],  # False
+            'fairxgboost__sensitive_col_name': [sensitive_feature_name],
+            'fairxgboost__remove_side': ['all'],
+            # 'only_privilaged'(A93,A94),'only_non_privilaged'(A91,A92),'all'
+            'fairxgboost__data_columns': [tuple(X_train.columns)],
+            'fairxgboost__anomaly_model_params': FairClassifier.build_gridsearch_cv_params(num_samples_in_gridsearch_fold= int(data_portion_in_fold*X_train.shape[0])),
+            'fairxgboost__snsftr_slctrt_sub_groups': [snsftr_slctrt_sub_groups],
+            'fairxgboost__verbose': [verbose],
+        }
+        num_iters = n_repeats * n_splits
+        for params_set in param_grid.values():
+            num_iters *= len(params_set)
+        print(f"Number of GridSearch fits: {num_iters}")
+
 
         #best standard metirics for imbalanced data is probably fbeta_<x> (f1 is the base case)
         # https://neptune.ai/blog/f1-score-accuracy-roc-auc-pr-auc#2 <--- IMPORTANT REFERENCE !!!
@@ -344,7 +364,7 @@ class FairClassifier:
         # https://hub.gke2.mybinder.org/user/scikit-learn-scikit-learn-s0vnxwm7/lab/tree/notebooks/auto_examples/model_selection/plot_roc.ipynb
         pipe_cv = None
 
-        with tqdm(total=len(range(1,26))) as pbar:
+        with tqdm(total=num_iters) as pbar:
 
             def aod_measure(y_true: pd.Series, y_pred:np.ndarray) -> float:
                 sensitive_selected_arr = sensitive_feature_srs.values[grid_search_idx[hash(y_true.values.tobytes())]]
