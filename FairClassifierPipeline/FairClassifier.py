@@ -159,7 +159,8 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
         # FINAL SLIM anomaly detection models' Gridsearch params
         if_param_grid = {'n_estimators': [200],
                          'max_features': [10],
-                         'n_jobs': [-1]}
+                         'n_jobs': [-1],
+                         'random_state':[42]}
 
         svm_param_grid = {'kernel': ['rbf'],
                           'gamma': [0.0001, 0.01, 1]}
