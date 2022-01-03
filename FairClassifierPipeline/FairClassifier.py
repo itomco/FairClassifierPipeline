@@ -480,12 +480,6 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
 
             top_models_results = top_models_results.sort_values(by=target_metric_col,ascending=ascending).head(max_num_top_models)
 
-        include_sensitive_feature_col = None
-        for col in top_models_results.columns:
-            if col.endswith('include_sensitive_feature'):
-                include_sensitive_feature_col = col
-                break
-        assert include_sensitive_feature_col is not None, 'could not find include_sensitive_feature column'
 
         if top_models_results.shape[0] == 0:
             print("there was no model who mached the target metrics threshold specified")
@@ -496,7 +490,9 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
                                                                                         data=X_test)
 
         result = []
-        with tqdm(total=top_models_results.shape[0]) as pbar:
+        num_iters = top_models_results.shape[0]
+        print(f"Check performance of top {num_iters} fairness aware trained models:")
+        with tqdm(total=num_iters) as pbar:
             for index in list(top_models_results.index):
                 params = {}
                 for col in list(top_models_results.columns):

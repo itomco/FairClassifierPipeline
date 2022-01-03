@@ -97,7 +97,8 @@ def load_config(config_name:str) -> Dict:
 def showcase_pipeline_impact_on_base_model(config:Dict,
                                            fairness_metrics:List,
                                            base_clf:BaseClf,
-                                           data:pd.DataFrame
+                                           data:pd.DataFrame,
+                                           do_plots:bool=True
                                            ):
 
     sensitive_features_names = config['sensitive_features']
@@ -122,7 +123,7 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
                                                      y_pred=base_y_pred)
 
         print('####### Base model ######### Confusion Matirx:')
-        utils.print_confusion_matrix(base_y_test,base_y_pred, base_y_pred_proba, do_plot=True)
+        utils.print_confusion_matrix(base_y_test,base_y_pred, base_y_pred_proba, do_plot=do_plots)
 
         clsf_rprt = classification_report(base_y_test, pd.Series(base_y_pred), digits=4, output_dict=True)
         snsftr_cm_w_base_preprocess.update({f'{sf}:accuracy': clsf_rprt['accuracy'],
@@ -169,7 +170,7 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
                                                                  y_pred= initial_y_pred)
 
         print('####### Initial model ######### Confusion Matirx:')
-        utils.print_confusion_matrix(utils.to_int_srs(initial_y_test),initial_y_pred, initial_y_pred_proba, do_plot=True)
+        utils.print_confusion_matrix(utils.to_int_srs(initial_y_test),initial_y_pred, initial_y_pred_proba, do_plot=do_plots)
 
         clsf_rprt = classification_report(initial_y_test, pd.Series(initial_y_pred), digits=4, output_dict=True)
         snsftr_cm_w_fair_pipeline.update({f'{sf}:accuracy':clsf_rprt['accuracy'],
@@ -205,6 +206,7 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
     return results
 
 if __name__ == '__main__':
+    do_plots = False
     for project_mode in ['bank','german']:
         # project_mode = 'german' # select 'bank' or 'german'
 
@@ -225,9 +227,10 @@ if __name__ == '__main__':
         ####-2. Check fair pipeline impact on base model
         print('\n####### II. Check fair pipeline impact on base model #################################################################################### \n')
         base_vs_initial_macro_avg_cm_results = showcase_pipeline_impact_on_base_model(config=config,
-                                               fairness_metrics = fairness_metrics,
-                                               base_clf=base_clf,
-                                               data=data.copy())
+                                                                                       fairness_metrics = fairness_metrics,
+                                                                                       base_clf=base_clf,
+                                                                                       data=data.copy(),
+                                                                                        do_plots = do_plots)
 
         ####-4. search for most fairness biased sensitive feature
         print('\n####### III. search for most fairness biased sensitive feature ############################################################################ \n')
@@ -329,7 +332,7 @@ if __name__ == '__main__':
                                            y_pred= fair_clf_y_pred)
 
         print('\n\n####### Fair Classifier model ######### Confusion Matirx:')
-        utils.print_confusion_matrix(y_test,fair_clf_y_pred, fair_clf_y_pred_proba, do_plot=True)
+        utils.print_confusion_matrix(y_test,fair_clf_y_pred, fair_clf_y_pred_proba, do_plot=do_plots)
 
 
         best_fair_clf_aod = top_models_scores_on_test_df['aod'][0]
