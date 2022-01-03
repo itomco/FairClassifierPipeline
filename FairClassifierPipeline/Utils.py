@@ -101,15 +101,7 @@ def to_float_df(df:pd.DataFrame) -> pd.DataFrame:
     return df.astype(float)
 
 def print_confusion_matrix(test_labels, test_pred, y_pred_proba = None, do_plot:bool=False):
-    print('Classification Report:')
-    print(classification_report(test_labels, test_pred, digits=4))
-
     cm = confusion_matrix(test_labels, test_pred)
-    print(f'True Positive Rate [Recall(1)]: {cm[1, 1] / sum(cm[1, :])}')
-    print(f'False Positive Rate [1-RCL(0)]: {cm[0, 1] / sum(cm[0, :])}\n')
-
-    print(f'Accuracy with default threshold: {(cm[0, 0] + cm[1, 1]) * 100 / (sum(cm).sum()):.4f}%\n')
-
     if do_plot:
         ax = plt.subplot()
         sns.heatmap(cm, annot=True, ax=ax, cmap='Reds', fmt="d")
@@ -126,6 +118,16 @@ def print_confusion_matrix(test_labels, test_pred, y_pred_proba = None, do_plot:
 
         ax.xaxis.set_ticklabels([False, True])
         ax.yaxis.set_ticklabels([False, True])
+    else:
+        print(f"Confusion Martix:\n{cm}")
+
+    print('Classification Report:')
+    print(classification_report(test_labels, test_pred, digits=4))
+
+    print(f'True Positive Rate [Recall(1)]: {cm[1, 1] / sum(cm[1, :])}')
+    print(f'False Positive Rate [1-RCL(0)]: {cm[0, 1] / sum(cm[0, :])}')
+    print(f'Accuracy with default threshold: {(cm[0, 0] + cm[1, 1]) * 100 / (sum(cm).sum()):.4f}%\n')
+
 
 # Function to get roc curve
 def get_roc (y_test,y_pred):

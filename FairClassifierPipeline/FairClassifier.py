@@ -139,36 +139,36 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
         #                    'tree_size': [min(512, int(num_samples_in_gridsearch_fold/2))]}
 
         #anomaly detection models' Gridsearch params FOR FAST DEBUG
-        # if_param_grid = {'n_estimators': [100],
-        #                  'max_samples': [0.5],
-        #                  'max_features': [10],
-        #                  'bootstrap': [True],
-        #                  'n_jobs': [-1]}
-        #
-        # svm_param_grid = {'kernel': ['rbf'],
-        #                   'gamma': [0.1]}
-        #
-        # rc_param_grid = {'random_state': [42]}
-        #
-        # lof_param_grid = {'n_neighbors': [40]}
-        #
-        # rrcf_param_grid = {'num_trees': [400],
-        #                    'tree_size': [min(512, int(num_samples_in_gridsearch_fold/2))]}
-
-        # FINAL SLIM anomaly detection models' Gridsearch params
-        if_param_grid = {'n_estimators': [200],
+        if_param_grid = {'n_estimators': [100],
+                         'max_samples': [0.5],
                          'max_features': [10],
+                         'bootstrap': [True],
                          'n_jobs': [-1]}
 
         svm_param_grid = {'kernel': ['rbf'],
-                          'gamma': [0.0001, 0.01, 1]}
+                          'gamma': [0.1]}
 
         rc_param_grid = {'random_state': [42]}
 
-        lof_param_grid = {'n_neighbors': [10, 30]}
+        lof_param_grid = {'n_neighbors': [40]}
 
-        rrcf_param_grid = {'num_trees': [200, 400],
-                           'tree_size': [min(512, int(num_samples_in_gridsearch_fold / 2))]}
+        rrcf_param_grid = {'num_trees': [400],
+                           'tree_size': [min(512, int(num_samples_in_gridsearch_fold/2))]}
+
+        # FINAL SLIM anomaly detection models' Gridsearch params
+        # if_param_grid = {'n_estimators': [200],
+        #                  'max_features': [10],
+        #                  'n_jobs': [-1]}
+        #
+        # svm_param_grid = {'kernel': ['rbf'],
+        #                   'gamma': [0.0001, 0.01, 1]}
+        #
+        # rc_param_grid = {'random_state': [42]}
+        #
+        # lof_param_grid = {'n_neighbors': [10, 30]}
+        #
+        # rrcf_param_grid = {'num_trees': [200, 400],
+        #                    'tree_size': [min(512, int(num_samples_in_gridsearch_fold / 2))]}
 
         def dict_product(dicts):
             return (dict(zip(dicts.keys(), x)) for x in itertools.product(*dicts.values()))
@@ -288,32 +288,32 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
         #     'fairxgboost__verbose': [self.verbose],
         # }
 
-        # param_grid = {
-        #     'fairxgboost__base_clf':[self.base_clf],
-        #     'fairxgboost__anomalies_per_to_remove': [0.35],  # 0.1,0.2 !!!!!!!!!!!!!!!!!!
-        #     'fairxgboost__include_sensitive_feature': [True],  # False
-        #     'fairxgboost__sensitive_col_name': [self.sensitive_feature_name],
-        #     'fairxgboost__remove_side': ['all'],
-        #     # 'only_privilaged'(A93,A94),'only_non_privilaged'(A91,A92),'all'
-        #     'fairxgboost__data_columns': [tuple(X_train.columns)],
-        #     'fairxgboost__anomaly_model_params': FairClassifier.build_gridsearch_cv_params(num_samples_in_gridsearch_fold= int(data_portion_in_fold*X_train.shape[0])),
-        #     'fairxgboost__snsftr_slctrt_sub_groups': [self.snsftr_slctrt_sub_groups],
-        #     'fairxgboost__verbose': [self.verbose],
-        # }
-
         param_grid = {
-            'fairxgboost__base_clf': [self.base_clf],
-            'fairxgboost__anomalies_per_to_remove': [0.35, 0.4, 0.45, 0.5],
+            'fairxgboost__base_clf':[self.base_clf],
+            'fairxgboost__anomalies_per_to_remove': [0.35],  # 0.1,0.2 !!!!!!!!!!!!!!!!!!
             'fairxgboost__include_sensitive_feature': [True],  # False
             'fairxgboost__sensitive_col_name': [self.sensitive_feature_name],
-            'fairxgboost__remove_side': ['all', 'only_privilaged'],
+            'fairxgboost__remove_side': ['all'],
             # 'only_privilaged'(A93,A94),'only_non_privilaged'(A91,A92),'all'
             'fairxgboost__data_columns': [tuple(X_train.columns)],
-            'fairxgboost__anomaly_model_params': FairClassifier.build_gridsearch_cv_params(
-                num_samples_in_gridsearch_fold=int(data_portion_in_fold * X_train.shape[0])),
+            'fairxgboost__anomaly_model_params': [FairClassifier.build_gridsearch_cv_params(num_samples_in_gridsearch_fold= int(data_portion_in_fold*X_train.shape[0]))[0]],
             'fairxgboost__snsftr_slctrt_sub_groups': [self.snsftr_slctrt_sub_groups],
             'fairxgboost__verbose': [self.verbose],
         }
+
+        # param_grid = {
+        #     'fairxgboost__base_clf': [self.base_clf],
+        #     'fairxgboost__anomalies_per_to_remove': [0.35, 0.4, 0.45, 0.5],
+        #     'fairxgboost__include_sensitive_feature': [True],  # False
+        #     'fairxgboost__sensitive_col_name': [self.sensitive_feature_name],
+        #     'fairxgboost__remove_side': ['all', 'only_privilaged'],
+        #     # 'only_privilaged'(A93,A94),'only_non_privilaged'(A91,A92),'all'
+        #     'fairxgboost__data_columns': [tuple(X_train.columns)],
+        #     'fairxgboost__anomaly_model_params': FairClassifier.build_gridsearch_cv_params(
+        #         num_samples_in_gridsearch_fold=int(data_portion_in_fold * X_train.shape[0])),
+        #     'fairxgboost__snsftr_slctrt_sub_groups': [self.snsftr_slctrt_sub_groups],
+        #     'fairxgboost__verbose': [self.verbose],
+        # }
 
         num_iters = self.n_repeats * self.n_splits
         for params_set in param_grid.values():
@@ -344,7 +344,9 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
                                                                       y_pred=utils.to_int_srs(pd.Series(y_pred)),
                                                                       sensitive_feature_arr=sensitive_selected_arr)
                 except BaseException as e:
-                    print(f"Exception raised due to insufficient values for some of the sub groups:\n{pd.Series(sensitive_selected_arr).value_counts()}")
+                    if self.verbose:
+                        print(f"Exception raised due to insufficient values for some of the sub groups:\n{pd.Series(sensitive_selected_arr).value_counts()}")
+
                     score = 20
 
                 if self.verbose:
@@ -370,8 +372,9 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
                                                               utils.to_int_srs(pd.Series(y_pred)),
                                                               sensitive_features=sensitive_selected_arr)
                 except BaseException as e:
-                    print(
-                        f"Exception raised due to insufficient values for some of the sub groups:\n{pd.Series(sensitive_selected_arr).value_counts()}")
+                    if self.verbose:
+                        print(f"Exception raised due to insufficient values for some of the sub groups:\n{pd.Series(sensitive_selected_arr).value_counts()}")
+
                     score = 10
 
                 if self.verbose:
@@ -594,3 +597,8 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
 
         return pd.Series(self._pipe_cv.predict(X=X_test))
 
+
+    def predict_proba(self, X_test:pd.DataFrame) -> pd.Series:
+        check_is_fitted(self, '_is_fitted')
+
+        return pd.Series(self._pipe_cv.predict_proba(X=X_test))
