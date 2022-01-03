@@ -440,7 +440,7 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
                                                          y_test:pd.Series,
                                                          target_metrics_thresholds:Dict,
                                                          performance_metrics:List=('aod','eod','f1_macro','tpr_diff','fpr_diff'),
-                                                         max_num_top_models:int=100,
+                                                         max_num_top_models:int=50,
                                                          verbose:bool=False):
         '''
 
