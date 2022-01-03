@@ -92,7 +92,7 @@ class BankBaseClf(BaseClf):
             X_test:pd.DataFrame = None,
             y_test:pd.Series = None
             ):
-        model = XGBClassifier(random_state = 42,use_label_encoder=False)
+        model = XGBClassifier(use_label_encoder=False)
         model.fit(X=X_train,
                   y=y_train,
                   eval_metric='logloss',

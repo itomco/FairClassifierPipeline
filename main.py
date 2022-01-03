@@ -318,9 +318,9 @@ if __name__ == '__main__':
 
 
 
-        print(top_models_scores_on_test)
+        # print(top_models_scores_on_test)
         top_models_scores_on_test_df = pd.DataFrame(top_models_scores_on_test).sort_values(by=[target_fairness_metric.lower(),'f1_macro'])
-        print(top_models_scores_on_test_df)
+        print(top_models_scores_on_test_df.head(10))
         top_models_scores_on_test_df.to_csv(f'./gscv_results/{datetime_tag}_{project_mode}_{target_fairness_metric}_top_models_scores_on_test_df.csv')
 
 

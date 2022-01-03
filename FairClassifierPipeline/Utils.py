@@ -118,6 +118,7 @@ def print_confusion_matrix(test_labels, test_pred, y_pred_proba = None, do_plot:
 
         ax.xaxis.set_ticklabels([False, True])
         ax.yaxis.set_ticklabels([False, True])
+        plt.show()
     else:
         print(f"Confusion Martix:\n{cm}")
 
