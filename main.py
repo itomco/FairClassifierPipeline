@@ -196,10 +196,11 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
 
         base_vs_initial_eod_results.columns = ['base','initial']
         base_vs_initial_macro_avg_cm_resuls.columns = ['base','initial']
-        print(f"Base model vs Initial model performance comparison for sensitive feature '{sf}':\n{pd.concat([base_vs_initial_eod_results,base_vs_initial_macro_avg_cm_resuls],axis=0)}")
+        result = pd.concat([base_vs_initial_eod_results,base_vs_initial_macro_avg_cm_resuls],axis=0)
+        print(f"Base model vs Initial model performance comparison for sensitive feature '{sf}':\n{result}")
         print('\n######################################################################################################################################\n')
 
-        results[sf] = base_vs_initial_macro_avg_cm_resuls
+        results[sf] = result
 
     return results
 
@@ -325,6 +326,12 @@ if __name__ == '__main__':
                               f'{sensitive_feature}:macro_avg-f1-score':clsf_rprt['macro avg']['f1-score'],
                               f'{sensitive_feature}:AUC': initial_auc})
 
+        base_vs_initial_vs_fair_clf = base_vs_initial_macro_avg_cm_results[sensitive_feature].copy()
+        base_vs_initial_vs_fair_clf['FairClf'] = pd.Series(fair_clf_results)
+
+        print(base_vs_initial_vs_fair_clf)
+
+
         ####-7. Check top fairness aware models' performance on un-seen (Test) data
         print("\n####### VI. Check top fairness aware models' performance on un-seen (Test) data #################################################################### \n")
         top_models_scores_on_test = fair_clf.retrain_top_models_and_get_performance_metrics(X_train=X_train,
@@ -335,7 +342,7 @@ if __name__ == '__main__':
                                                                                             target_metrics_thresholds={target_fairness_metric:1.0,
                                                                                                                        'f1_macro':0.0})
 
-        base_vs_initial_vs_fair_clf = base_vs_initial_macro_avg_cm_results.copy()
+
 
         print(top_models_scores_on_test)
         top_models_scores_on_test_df = pd.DataFrame(top_models_scores_on_test).sort_values(by=[target_fairness_metric.lower(),'f1_macro'])
