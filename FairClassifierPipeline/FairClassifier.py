@@ -170,7 +170,6 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
         lof_param_grid = {'n_neighbors': [10, 30]}
 
         rrcf_param_grid = {'num_trees': [200, 400],
-                           'random_state':[42],
                            'tree_size': [min(512, int(num_samples_in_gridsearch_fold / 2))]}
 
         def dict_product(dicts):
