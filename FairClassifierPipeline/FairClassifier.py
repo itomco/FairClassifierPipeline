@@ -496,55 +496,57 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
                                                                                         data=X_test)
 
         result = []
-        for index in list(top_models_results.index):
-            params = {}
-            for col in list(top_models_results.columns):
-                # if col == 'param_fairxgboost__base_clf':
-                #     params['base_clf'] = self.base_clf
-                # elif col == 'param_fairxgboost__anomaly_model_params':
-                #     params['anomaly_model_params'] = top_models_results[col][index]
-                if col.startswith('param_fairxgboost__'):
-                    param_name = col.split('param_fairxgboost__')[1]
-                    params[param_name] = top_models_results[col][index]
+        with tqdm(total=top_models_results.shape[0]) as pbar:
+            for index in list(top_models_results.index):
+                params = {}
+                for col in list(top_models_results.columns):
+                    # if col == 'param_fairxgboost__base_clf':
+                    #     params['base_clf'] = self.base_clf
+                    # elif col == 'param_fairxgboost__anomaly_model_params':
+                    #     params['anomaly_model_params'] = top_models_results[col][index]
+                    if col.startswith('param_fairxgboost__'):
+                        param_name = col.split('param_fairxgboost__')[1]
+                        params[param_name] = top_models_results[col][index]
 
-            fair_clf = FairXGBClassifier()
-            fair_clf.set_params(**params)
-            fair_clf.fit(X_train, y_train)
+                fair_clf = FairXGBClassifier()
+                fair_clf.set_params(**params)
+                fair_clf.fit(X_train, y_train)
 
-            #4. make prediction
-            y_pred = fair_clf.predict(X=X_test)
+                #4. make prediction
+                y_pred = fair_clf.predict(X=X_test)
 
-            #5. create performance results
-            model_preformance_results = {'index':index}
+                #5. create performance results
+                model_preformance_results = {'index':index}
 
-            if 'eod' in performance_metrics:
-                model_preformance_results['eod'] = equalized_odds_difference(y_true=y_test,
-                                                       y_pred=utils.to_int_srs(pd.Series(y_pred)),
-                                                       sensitive_features=X_test_sensitive_feature_srs.values)
-            if 'aod' in performance_metrics:
-                model_preformance_results['aod'] = frns_utils.average_odds_difference(y_true=y_test,
-                                                       y_pred=utils.to_int_srs(pd.Series(y_pred)),
-                                                       sensitive_feature_arr=X_test_sensitive_feature_srs.values)
-            if 'f1_macro' in performance_metrics:
-                model_preformance_results['f1_macro'] = f1_score(y_true=y_test,
-                                                            y_pred=utils.to_int_srs(pd.Series(y_pred)),
-                                                            average='macro')
+                if 'eod' in performance_metrics:
+                    model_preformance_results['eod'] = equalized_odds_difference(y_true=y_test,
+                                                           y_pred=utils.to_int_srs(pd.Series(y_pred)),
+                                                           sensitive_features=X_test_sensitive_feature_srs.values)
+                if 'aod' in performance_metrics:
+                    model_preformance_results['aod'] = frns_utils.average_odds_difference(y_true=y_test,
+                                                           y_pred=utils.to_int_srs(pd.Series(y_pred)),
+                                                           sensitive_feature_arr=X_test_sensitive_feature_srs.values)
+                if 'f1_macro' in performance_metrics:
+                    model_preformance_results['f1_macro'] = f1_score(y_true=y_test,
+                                                                y_pred=utils.to_int_srs(pd.Series(y_pred)),
+                                                                average='macro')
 
-            if 'tpr_diff' in performance_metrics:
-                model_preformance_results['tpr_diff'] = true_positive_rate_difference(y_true=y_test,
-                                                                                 y_pred=utils.to_int_srs(pd.Series(y_pred)),
-                                                                                 sensitive_features=X_test_sensitive_feature_srs.values)
+                if 'tpr_diff' in performance_metrics:
+                    model_preformance_results['tpr_diff'] = true_positive_rate_difference(y_true=y_test,
+                                                                                     y_pred=utils.to_int_srs(pd.Series(y_pred)),
+                                                                                     sensitive_features=X_test_sensitive_feature_srs.values)
 
-            if 'fpr_diff' in performance_metrics:
-                model_preformance_results['fpr_diff'] = false_positive_rate_difference(y_true=y_test,
-                                                                                  y_pred=utils.to_int_srs(pd.Series(y_pred)),
-                                                                                  sensitive_features=X_test_sensitive_feature_srs.values)
+                if 'fpr_diff' in performance_metrics:
+                    model_preformance_results['fpr_diff'] = false_positive_rate_difference(y_true=y_test,
+                                                                                      y_pred=utils.to_int_srs(pd.Series(y_pred)),
+                                                                                      sensitive_features=X_test_sensitive_feature_srs.values)
 
 
-            if verbose:
-                print(f"top model #{index} performance results: {model_preformance_results}")
+                if verbose:
+                    print(f"top model #{index} performance results: {model_preformance_results}")
 
-            result.append(model_preformance_results)
+                result.append(model_preformance_results)
+                pbar.update(1)
 
         return result
 
