@@ -38,6 +38,9 @@ def create_german_config(config_name:str='german'):
                                     'age':[25,50]
                                     }
 
+    config['fairness_metrics'] = ['AOD', 'EOD']
+    config['target_fairness_metric'] = 'AOD'
+
     config['max_sparse_col_threshold'] = 0.8
     config['data_path'] = './Data/german.data'
 
@@ -59,6 +62,9 @@ def create_bank_config(config_name:str='bank'):
     }
 
     config['numeric_to_ord_cat'] = {'age': [28, 38, 48, 58, 68, 78]}
+
+    config['fairness_metrics'] = ['AOD', 'EOD']
+    config['target_fairness_metric'] = 'AOD'
 
     config['max_sparse_col_threshold'] = 0.8
     config['data_path'] = './Data/bank.csv'

@@ -77,6 +77,11 @@
             50
         ]
     },
+    "fairness_metrics": [
+        "AOD",
+        "EOD"
+    ],
+    "target_fairness_metric": "AOD",
     "max_sparse_col_threshold": 0.8,
     "data_path": "./Data/german.data"
 }

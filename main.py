@@ -105,6 +105,8 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
 
     for sf in sensitive_features_names:
         if sf in data.columns and fair_ppl.is_categorial(data[sf]) == False:
+            #skip sensitive feature with continues values as base model's data preprocessing
+            # does not convert it to categorical feature as our pipeline does
             continue
 
         snsftr_eods_w_base_preprocess = {}
@@ -187,12 +189,14 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
         print(f"Base model vs Initial Model for sensitive feature '{sf}':\n{pd.concat([base_vs_initial_eod_results,base_vs_initial_macro_avg_cf_resuls],axis=0)}")
 
 if __name__ == '__main__':
-    fairness_metrics = ['AOD','EOD']
     for project_mode in ['german']:
         # project_mode = 'german' # select 'bank' or 'german'
 
         ####-0 select config
         config = load_config(config_name=project_mode)
+
+        fairness_metrics = config['fairness_metrics']
+        target_fairness_metric = config['target_fairness_metric']
 
         ####-1. Load data
         data = data_loader.load_data(project_mode=project_mode, data_path=config['data_path'])
@@ -208,7 +212,6 @@ if __name__ == '__main__':
                                                data=data.copy())
 
         ####-4. search for most fairness biased sensitive feature
-        target_fairness_metric = 'AOD'
 
         sensitive_feature = FairClassifier.get_most_biased_sensitive_feature(data=data.copy(),
                                                                        fairness_metric=target_fairness_metric,

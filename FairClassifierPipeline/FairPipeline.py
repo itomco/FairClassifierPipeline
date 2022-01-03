@@ -732,7 +732,7 @@ def create_pipeline(config:Dict) -> pipe:
             # ('categorical_numerical_preprocessor', get_columns_transformer(config))
            ('remove_rows_wo_sensitive_feature_value',FunctionTransformer(remove_rows_wo_value_for_column,
                                                            kw_args={'label_col_name': config['sensitive_feature']})),
-           ('categorical_numerical_preprocessor', get_columns_transformer(config))
+           ('cat_and_cont_cols_preprocessor', get_columns_transformer(config))
            ])
     
     return ppl
