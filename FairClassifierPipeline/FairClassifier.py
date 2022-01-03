@@ -102,7 +102,7 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
 
     def __init__(self, target_fairness_metric:str,
                  base_clf:BaseClf, n_splits:int = 5, n_repeats:int = 1, random_state:int = 42, verbose:bool=False):
-        self.supported_metrics = ['f1','aod','eod']
+        self.supported_metrics = ['f1_macro','aod','eod']
         assert target_fairness_metric.lower() in self.supported_metrics, 'eod and aod are currntly the only supported fairness metrics'
 
         self.n_splits = n_splits
@@ -384,7 +384,7 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
 
             scorers_dict = {'eod':make_scorer(eod_measure, greater_is_better=False),
                             'aod':make_scorer(aod_measure, greater_is_better=False),
-                            'f1':make_scorer(f1_measure,greater_is_better=True)}
+                            'f1_macro':make_scorer(f1_measure,greater_is_better=True)}
             refit = self.target_fairness_metric.lower()
             assert refit in scorers_dict.keys(), f"gridsearch_cv's parameter 'refit' == '{self.target_fairness_metric}' (target_fairness_metric) and must be one of the scorrers names"
 
@@ -426,7 +426,7 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
                                                          X_test:pd.DataFrame,
                                                          y_test:pd.Series,
                                                          target_metrics_thresholds:Dict,
-                                                         performance_metrics:List=('aod','eod','f1','tpr_diff','fpr_diff'),
+                                                         performance_metrics:List=('aod','eod','f1_macro','tpr_diff','fpr_diff'),
                                                          max_num_top_models:int=100,
                                                          verbose:bool=False):
         '''
@@ -566,8 +566,8 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
                 model_preformance_results['aod'] = frns_utils.average_odds_difference(y_true=y_test,
                                                        y_pred=utils.to_int_srs(pd.Series(y_pred)),
                                                        sensitive_feature_arr=X_test_sensitive_feature_srs.values)
-            if 'f1' in performance_metrics:
-                model_preformance_results['f1'] = f1_score(y_true=y_test,
+            if 'f1_macro' in performance_metrics:
+                model_preformance_results['f1_macro'] = f1_score(y_true=y_test,
                                                             y_pred=utils.to_int_srs(pd.Series(y_pred)),
                                                             average='macro')
 
