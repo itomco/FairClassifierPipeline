@@ -290,7 +290,7 @@ if __name__ == '__main__':
         results = pd.DataFrame(pipe_cv.cv_results_)
         datetime_tag = datetime.now().strftime("%y%m%d_%H%M%S")
         results.to_csv(f'./gscv_results/{datetime_tag}_{project_mode}_{target_fairness_metric}_pipe_cv.cv_results_.csv')
-        print(f'results:\n{results}')
+        print(f'results:\n{results.head(3)}')
 
         fair_clf_y_pred = fair_clf.predict(X_test)
         fair_clf_y_pred_proba = fair_clf.predict_proba(X_test)

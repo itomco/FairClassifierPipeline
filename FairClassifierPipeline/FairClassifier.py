@@ -295,7 +295,7 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
         #     # 'only_privilaged'(A93,A94),'only_non_privilaged'(A91,A92),'all'
         #     'fairxgboost__data_columns': [tuple(X_train.columns)],
         #     'fairxgboost__anomaly_model_params': FairClassifier.build_gridsearch_cv_params(num_samples_in_gridsearch_fold= int(data_portion_in_fold*X_train.shape[0])),
-        #     'fairxgboost__snsftr_slctrt_sub_groups': [[(self.snsftr_slctrt_sub_groups[0][1],self.snsftr_slctrt_sub_groups[1][1])]],
+        #     'fairxgboost__snsftr_slctrt_sub_groups': [(self.snsftr_slctrt_sub_groups[0][1],self.snsftr_slctrt_sub_groups[1][1])],
         #     'fairxgboost__verbose': [self.verbose],
         # }
 
@@ -322,7 +322,7 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
             'fairxgboost__data_columns': [tuple(X_train.columns)],
             'fairxgboost__anomaly_model_params': FairClassifier.build_gridsearch_cv_params(
                 num_samples_in_gridsearch_fold=int(data_portion_in_fold * X_train.shape[0])),
-            'fairxgboost__snsftr_slctrt_sub_groups': [[(self.snsftr_slctrt_sub_groups[0][1],self.snsftr_slctrt_sub_groups[1][1])]],
+            'fairxgboost__snsftr_slctrt_sub_groups': [(self.snsftr_slctrt_sub_groups[0][1],self.snsftr_slctrt_sub_groups[1][1])],
             'fairxgboost__verbose': [self.verbose],
         }
 
