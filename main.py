@@ -285,9 +285,9 @@ if __name__ == '__main__':
                                                                                             y_test=y_test,
                                                                                             max_num_top_models=180,
                                                                                             target_metrics_thresholds={target_fairness_metric:1.0,
-                                                                                                                       'f1':0.0})
+                                                                                                                       'f1_macro':0.0})
 
         print(top_models_scores_on_test)
-        top_models_scores_on_test_df = pd.DataFrame(top_models_scores_on_test).sort_values(by=[target_fairness_metric.lower(),'f1'])
+        top_models_scores_on_test_df = pd.DataFrame(top_models_scores_on_test).sort_values(by=[target_fairness_metric.lower(),'f1_macro'])
         print(top_models_scores_on_test_df)
         top_models_scores_on_test_df.to_csv(f'./gscv_results/{datetime_tag}_{project_mode}_{target_fairness_metric}_top_models_scores_on_test_df.csv')
