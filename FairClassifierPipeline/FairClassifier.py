@@ -143,7 +143,8 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
         #                  'max_samples': [0.5],
         #                  'max_features': [10],
         #                  'bootstrap': [True],
-        #                  'n_jobs': [-1]}
+        #                  'n_jobs': [-1],
+        #                  'random_state':[42]}
         #
         # svm_param_grid = {'kernel': ['rbf'],
         #                   'gamma': [0.1]}
@@ -158,7 +159,8 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
         # FINAL SLIM anomaly detection models' Gridsearch params
         if_param_grid = {'n_estimators': [200],
                          'max_features': [10],
-                         'n_jobs': [-1]}
+                         'n_jobs': [-1],
+                         'random_state':[42]}
 
         svm_param_grid = {'kernel': ['rbf'],
                           'gamma': [0.0001, 0.01, 1]}
@@ -168,6 +170,7 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
         lof_param_grid = {'n_neighbors': [10, 30]}
 
         rrcf_param_grid = {'num_trees': [200, 400],
+                           'random_state':[42],
                            'tree_size': [min(512, int(num_samples_in_gridsearch_fold / 2))]}
 
         def dict_product(dicts):
@@ -273,6 +276,14 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
         #     print(f'EOD Score:{eod_score}')
         #     return eod_score
 
+        #select the sensitive feature's larger sub-group to include in the 'remove_side' strategy
+        remove_side_list = ['only_privilaged']
+        if self.snsftr_slctrt_sub_groups[0][0] > self.snsftr_slctrt_sub_groups[1][0]:
+            remove_side_list = ['only_non_privilaged']
+        remove_side_list.append('all')
+
+        if self.verbose:
+            print(f"Final remove_side policy: {remove_side_list}")
 
         # Define the parameter grid space
         # param_grid = {
@@ -284,7 +295,7 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
         #     # 'only_privilaged'(A93,A94),'only_non_privilaged'(A91,A92),'all'
         #     'fairxgboost__data_columns': [tuple(X_train.columns)],
         #     'fairxgboost__anomaly_model_params': FairClassifier.build_gridsearch_cv_params(num_samples_in_gridsearch_fold= int(data_portion_in_fold*X_train.shape[0])),
-        #     'fairxgboost__snsftr_slctrt_sub_groups': [self.snsftr_slctrt_sub_groups],
+        #     'fairxgboost__snsftr_slctrt_sub_groups': [[(self.snsftr_slctrt_sub_groups[0][1],self.snsftr_slctrt_sub_groups[1][1])]],
         #     'fairxgboost__verbose': [self.verbose],
         # }
 
@@ -297,21 +308,21 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
         #     # 'only_privilaged'(A93,A94),'only_non_privilaged'(A91,A92),'all'
         #     'fairxgboost__data_columns': [tuple(X_train.columns)],
         #     'fairxgboost__anomaly_model_params': [FairClassifier.build_gridsearch_cv_params(num_samples_in_gridsearch_fold= int(data_portion_in_fold*X_train.shape[0]))[0]],
-        #     'fairxgboost__snsftr_slctrt_sub_groups': [self.snsftr_slctrt_sub_groups],
+        #     'fairxgboost__snsftr_slctrt_sub_groups': [(self.snsftr_slctrt_sub_groups[0][1],self.snsftr_slctrt_sub_groups[1][1])],
         #     'fairxgboost__verbose': [self.verbose],
         # }
 
+        # FINAL SLIM gridsearch params set
         param_grid = {
             'fairxgboost__base_clf': [self.base_clf],
             'fairxgboost__anomalies_per_to_remove': [0.35, 0.4, 0.45, 0.5],
             'fairxgboost__include_sensitive_feature': [True],  # False
             'fairxgboost__sensitive_col_name': [self.sensitive_feature_name],
-            'fairxgboost__remove_side': ['all', 'only_privilaged'],
-            # 'only_privilaged'(A93,A94),'only_non_privilaged'(A91,A92),'all'
+            'fairxgboost__remove_side': remove_side_list,
             'fairxgboost__data_columns': [tuple(X_train.columns)],
             'fairxgboost__anomaly_model_params': FairClassifier.build_gridsearch_cv_params(
                 num_samples_in_gridsearch_fold=int(data_portion_in_fold * X_train.shape[0])),
-            'fairxgboost__snsftr_slctrt_sub_groups': [self.snsftr_slctrt_sub_groups],
+            'fairxgboost__snsftr_slctrt_sub_groups': [[(self.snsftr_slctrt_sub_groups[0][1],self.snsftr_slctrt_sub_groups[1][1])]],
             'fairxgboost__verbose': [self.verbose],
         }
 
@@ -454,8 +465,8 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
 
         top_models_results = pd.DataFrame(self._pipe_cv.cv_results_)
 
-        if max_num_top_models > len(self._pipe_cv.cv_results_):
-            max_num_top_models = len(self._pipe_cv.cv_results_)
+        if max_num_top_models > len(list(self._pipe_cv.cv_results_.values())[0]):
+            max_num_top_models = len(list(self._pipe_cv.cv_results_.values())[0])
 
         for target_metric_name, target_metric_value_threshold in target_metrics_thresholds.items():
             target_metric_col = f'mean_test_{target_metric_name.lower()}'
@@ -482,81 +493,27 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
         elif verbose:
             print(f"Start computing models performance results for {top_models_results.shape[0]} top models ...")
 
-        non_privilage_group = self.snsftr_slctrt_sub_groups[0]
-        privilage_group = self.snsftr_slctrt_sub_groups[1]
         X_test_sensitive_feature_srs = frns_utils.get_feature_col_from_preprocessed_data(feature_name=self.sensitive_feature_name,
                                                                                         data=X_test)
 
         result = []
         for index in list(top_models_results.index):
-            #1. remove sensitive feature if required
-            include_sensitive_feature = bool(top_models_results[include_sensitive_feature_col][index])
+            params = {}
+            for col in list(top_models_results.columns):
+                # if col == 'param_fairxgboost__base_clf':
+                #     params['base_clf'] = self.base_clf
+                # elif col == 'param_fairxgboost__anomaly_model_params':
+                #     params['anomaly_model_params'] = top_models_results[col][index]
+                if col.startswith('param_fairxgboost__'):
+                    param_name = col.split('param_fairxgboost__')[1]
+                    params[param_name] = top_models_results[col][index]
 
-            X_train_to_use = X_train.copy()
-            if include_sensitive_feature == False:
-                X_train_to_use = frns_utils.drop_sensitive_feature(  sensitive_col_name=self.sensitive_feature_name,
-                                                                      data=X_train,
-                                                                      snsftr_slctrt_sub_groups=self.snsftr_slctrt_sub_groups)
-                # X_train_to_use = X_train.drop(columns=self.sensitive_feature_name)
-
-            #2. perform anomaly semples detection and removal strategy on X_train_to_use
-            anomaly_model_params = top_models_results['param_fairxgboost__anomaly_model_params'][index]
-            anomalies_per_to_remove = top_models_results['param_fairxgboost__anomalies_per_to_remove'][index]
-            remove_side = top_models_results['param_fairxgboost__remove_side'][index]
-
-            anomaly_algorithms = {
-                "IF": IsolationForest,
-                "SVM": OneClassSVM,
-                "LOF": LocalOutlierFactor,
-                "RC": EllipticEnvelope,
-                "RRCF": RRCF}
-            algorithm_name = list(anomaly_model_params.keys())[0]
-            anomaly_model_params = list(anomaly_model_params.values())[0]
-            if verbose:
-                print(f'  Selected algorithm:{algorithm_name}')
-                print(f'  Algorithm params:{anomaly_model_params}')
-                print(f'  Grid params: anomalies_per_to_remove:{anomalies_per_to_remove}, include_sensitive_feature:{include_sensitive_feature}, remove_side:{remove_side}')
-
-            if algorithm_name.lower() == 'svm':
-                anomaly_model_params['nu'] = anomalies_per_to_remove
-            else:
-                anomaly_model_params['contamination'] = anomalies_per_to_remove
-
-            algorithm = anomaly_algorithms[algorithm_name](**anomaly_model_params)
-
-            # #############################################################################################
-            # get anomalies by prediction
-            if algorithm_name.lower() == 'lof':
-                anomalies_idx = np.where(algorithm.fit_predict(X_train_to_use.values) == -1)[0].tolist()
-            else:
-                algorithm.fit(X_train_to_use.values)
-                anomalies_idx = np.where(algorithm.predict(X_train_to_use.values) == -1)[0].tolist()
-
-            anomalies_idx = set(anomalies_idx)
-            filter_sub_sensitive_group = []
-            if remove_side == 'only_privilaged':
-                ## filter the rows of the non-privilaged
-                for sf_value in privilage_group:
-                    # print(f'indexes of non privilaged: {set(list(self.data.index[self.data[idx_np] == 1]))}')
-                    filter_sub_sensitive_group += (list(X_train_to_use.index[self.sensitive_feature_srs == sf_value]))
-                    # print(f'filter_sub_sensitive_group:{filter_sub_sensitive_group}')
-            elif remove_side == 'only_non_privilaged':
-                ## filter the rows of the privilaged
-                for sf_value in non_privilage_group:
-                    # print(f'indexes of privilaged: {set(list(self.data.index[self.data[idx_p] == 1]))}')
-                    filter_sub_sensitive_group += (list(X_train_to_use.index[self.sensitive_feature_srs == sf_value]))
-                    # print(f'indexes after filtering sensitive: {anomalies_idx}')
-            else:  # remove all anomalies
-                filter_sub_sensitive_group = anomalies_idx
-
-            anomalies_idx_to_remove = anomalies_idx & set(filter_sub_sensitive_group)
-
-            #3. fit the base model
-            clf = self.base_clf.fit(X_train=X_train_to_use.drop(list(anomalies_idx_to_remove)),
-                                    y_train=pd.Series(np.delete(y_train.values, list(anomalies_idx_to_remove))))
+            fair_clf = FairXGBClassifier()
+            fair_clf.set_params(**params)
+            fair_clf.fit(X_train, y_train)
 
             #4. make prediction
-            y_pred = self.base_clf.predict(clf=clf, X=X_test)[0]
+            y_pred = fair_clf.predict(X=X_test)
 
             #5. create performance results
             model_preformance_results = {'index':index}
@@ -595,7 +552,7 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
     def predict(self, X_test:pd.DataFrame) -> pd.Series:
         check_is_fitted(self, '_is_fitted')
 
-        return pd.Series(self._pipe_cv.predict(X=X_test))
+        return pd.Series(self._pipe_cv.best_estimator_.predict(X=X_test))
 
 
     def predict_proba(self, X_test:pd.DataFrame) -> pd.Series:

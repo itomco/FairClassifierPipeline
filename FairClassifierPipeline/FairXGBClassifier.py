@@ -160,6 +160,7 @@ class FairXGBClassifier(ClassifierMixin, BaseEstimator):
                 "verbose": self.verbose,
                 "do_plots": self.do_plots}
 
+
     def set_params(self, **parameters):
         for parameter, value in parameters.items():
             setattr(self, parameter, value)

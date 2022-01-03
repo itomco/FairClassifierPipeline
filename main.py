@@ -118,7 +118,7 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
                                                                     base_clf.run_baseline(data=data.copy(),
                                                                                           config=config)
 
-        base_fpr, base_tpr, base_auc = utils.get_roc(y_test=base_y_test,
+        _, _, base_auc = utils.get_roc(y_test=base_y_test,
                                                      y_pred=base_y_pred)
 
         print('####### Base model ######### Confusion Matirx:')
@@ -165,7 +165,7 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
                                                                                   y_train= utils.to_int_srs(initial_y_train),
                                                                                   X_test= utils.to_float_df(initial_X_test))
 
-        initial_fpr, initial_tpr, initial_auc = utils.get_roc(y_test= initial_y_test,
+        _, _, initial_auc = utils.get_roc(y_test= initial_y_test,
                                                                  y_pred= initial_y_pred)
 
         print('####### Initial model ######### Confusion Matirx:')
@@ -205,7 +205,7 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
     return results
 
 if __name__ == '__main__':
-    for project_mode in ['german']:
+    for project_mode in ['bank','german']:
         # project_mode = 'german' # select 'bank' or 'german'
 
         ####-0 select config
@@ -264,13 +264,16 @@ if __name__ == '__main__':
 
         sensitive_feature_srs = frns_utils.get_feature_col_from_preprocessed_data(feature_name=sensitive_feature,
                                                                                 data= X_train)
-        snsftr_groups_slctnrt_and_acc, snsftr_slctrt_sub_groups = \
+        snsftr_groups_slctnrt, snsftr_slctrt_sub_groups = \
             frns_utils.get_feature_sub_groups_by_selection_rate( y_true= y_train,
                                                                  y_pred= y_pred,
                                                                  sensitive_feature_srs = sensitive_feature_srs)
+        unprev_size = len(sensitive_feature_srs[sensitive_feature_srs.isin(pd.Series(list(snsftr_slctrt_sub_groups[0])))])
+        prev_size = len(sensitive_feature_srs[sensitive_feature_srs.isin(pd.Series(list(snsftr_slctrt_sub_groups[1])))])
+        snsftr_sub_groups = ((unprev_size,snsftr_slctrt_sub_groups[0]),(prev_size,snsftr_slctrt_sub_groups[1]))
 
-        print(f"snsftr_slctrt_sub_groups: {snsftr_slctrt_sub_groups}\n")
-        print(f"snsftr_groups_slctnrt_and_acc:\n{snsftr_groups_slctnrt_and_acc}\n")
+        print(f"snsftr_slctrt_sub_groups: prev=[{snsftr_slctrt_sub_groups[1]},{prev_size}], unprev=[{snsftr_slctrt_sub_groups[0]},{unprev_size}]\n")
+        print(f"snsftr_groups_slctnrt:\n{snsftr_groups_slctnrt}\n")
 
         ####-6. run gridsearch_cv with anomaly samples removal
         print('\n####### V. Create & Fit a FairClassifier model ################################################################################################ \n')
@@ -281,7 +284,7 @@ if __name__ == '__main__':
         fair_clf.fit(X_train = X_train,
                      y_train = y_train,
                      sensitive_feature_name=sensitive_feature,
-                     snsftr_slctrt_sub_groups=snsftr_slctrt_sub_groups)
+                     snsftr_slctrt_sub_groups=snsftr_sub_groups)
 
         pipe_cv = fair_clf.pipe_cv
         results = pd.DataFrame(pipe_cv.cv_results_)
@@ -289,47 +292,18 @@ if __name__ == '__main__':
         results.to_csv(f'./gscv_results/{datetime_tag}_{project_mode}_{target_fairness_metric}_pipe_cv.cv_results_.csv')
         print(f'results:\n{results}')
 
-        y_pred = fair_clf.predict(X_test)
-        y_pred_proba = fair_clf.predict_proba(X_test)
-        # y_pred = utils.to_int_srs(pd.Series(y_pred))
+        fair_clf_y_pred = fair_clf.predict(X_test)
+        fair_clf_y_pred_proba = fair_clf.predict_proba(X_test)
 
-        best_fair_clf_model = frns_utils.get_fairness_score_for_sensitive_features(sensitive_features_names=[sensitive_feature],
-                                                                           fairness_metric=target_fairness_metric,
-                                                                           y_true=y_test,
-                                                                           y_pred=y_pred,
-                                                                           data=X_test)
+        # best_clf_model_fair_metric_value = frns_utils.get_fairness_score_for_sensitive_features(sensitive_features_names=[sensitive_feature],
+        #                                                                    fairness_metric=target_fairness_metric,
+        #                                                                    y_true=y_test,
+        #                                                                    y_pred=fair_clf_y_pred,
+        #                                                                    data=X_test)
+        #
+        # print(f"best_fair_clf_model: {best_clf_model_fair_metric_value}")
+        # print(classification_report(y_test, pd.Series(y_pred), digits=4))
 
-        print(f"best_fair_clf_model: {best_fair_clf_model}")
-        print(classification_report(y_test, pd.Series(y_pred), digits=4))
-
-
-        initial_fpr, initial_tpr, initial_auc = utils.get_roc(y_test= y_test,
-                                                                 y_pred= y_pred)
-
-        print('####### Fair Classifier model ######### Confusion Matirx:')
-        utils.print_confusion_matrix(y_test,y_pred, y_pred_proba, do_plot=True)
-
-        clsf_rprt = classification_report(y_test, pd.Series(y_pred), digits=4, output_dict=True)
-
-        fair_clf_results = {}
-        for frns_mtrc in fairness_metrics:
-            fair_clf_results.update(frns_utils.get_fairness_score_for_sensitive_features(sensitive_features_names = [sensitive_feature],
-                                                                                                  fairness_metric=frns_mtrc,
-                                                                                                  y_true=y_test,
-                                                                                                  y_pred=y_pred,
-                                                                                                  data=X_test))
-        fair_clf_results.update({f'{sensitive_feature}:accuracy':clsf_rprt['accuracy'],
-                              f"{sensitive_feature}:TPR['1']": clsf_rprt['1']['recall'],
-                              f"{sensitive_feature}:FPR['1']": 1-clsf_rprt['0']['recall'],
-                              f'{sensitive_feature}:macro_avg-precision':clsf_rprt['macro avg']['precision'],
-                              f'{sensitive_feature}:macro_avg-recall':clsf_rprt['macro avg']['recall'],
-                              f'{sensitive_feature}:macro_avg-f1-score':clsf_rprt['macro avg']['f1-score'],
-                              f'{sensitive_feature}:AUC': initial_auc})
-
-        base_vs_initial_vs_fair_clf = base_vs_initial_macro_avg_cm_results[sensitive_feature].copy()
-        base_vs_initial_vs_fair_clf['FairClf'] = pd.Series(fair_clf_results)
-
-        print(base_vs_initial_vs_fair_clf)
 
 
         ####-7. Check top fairness aware models' performance on un-seen (Test) data
@@ -348,3 +322,32 @@ if __name__ == '__main__':
         top_models_scores_on_test_df = pd.DataFrame(top_models_scores_on_test).sort_values(by=[target_fairness_metric.lower(),'f1_macro'])
         print(top_models_scores_on_test_df)
         top_models_scores_on_test_df.to_csv(f'./gscv_results/{datetime_tag}_{project_mode}_{target_fairness_metric}_top_models_scores_on_test_df.csv')
+
+
+        ####-8. print faire classifier final results
+        _, _, fair_clf_auc = utils.get_roc(y_test= y_test,
+                                           y_pred= fair_clf_y_pred)
+
+        print('\n\n####### Fair Classifier model ######### Confusion Matirx:')
+        utils.print_confusion_matrix(y_test,fair_clf_y_pred, fair_clf_y_pred_proba, do_plot=True)
+
+
+        best_fair_clf_aod = top_models_scores_on_test_df['aod'][0]
+        best_fair_clf_eod = top_models_scores_on_test_df['eod'][0]
+        fair_clf_results = {f'{sensitive_feature}:aod':best_fair_clf_aod, f'{sensitive_feature}:eod':best_fair_clf_eod}
+
+        clsf_rprt = classification_report(y_test, pd.Series(fair_clf_y_pred), digits=4, output_dict=True)
+        fair_clf_results.update({f'{sensitive_feature}:accuracy':clsf_rprt['accuracy'],
+                              f"{sensitive_feature}:TPR['1']": clsf_rprt['1']['recall'],
+                              f"{sensitive_feature}:FPR['1']": 1-clsf_rprt['0']['recall'],
+                              f'{sensitive_feature}:macro_avg-precision':clsf_rprt['macro avg']['precision'],
+                              f'{sensitive_feature}:macro_avg-recall':clsf_rprt['macro avg']['recall'],
+                              f'{sensitive_feature}:macro_avg-f1-score':clsf_rprt['macro avg']['f1-score'],
+                              f'{sensitive_feature}:AUC': fair_clf_auc})
+
+        base_vs_initial_vs_fair_clf = base_vs_initial_macro_avg_cm_results[sensitive_feature].copy()
+        base_vs_initial_vs_fair_clf['FairClf'] = pd.Series(fair_clf_results)
+
+        print(base_vs_initial_vs_fair_clf)
+
+        print('\n\n####################################################################################################################################\n\n')
