@@ -72,7 +72,7 @@ from fairlearn.metrics import (
 )
 import itertools
 
-class RobustRandomCutForest():
+class RobustRandomCutForest(ClassifierMixin, BaseEstimator):
     """
     RobustRandomCutForest.
     The Robust Random Cut Forest (RRCF) algorithm is an ensemble method for detecting outliers in streaming data. RRCF offers a number of features that many competing anomaly detection algorithms lack. Specifically, RRCF:
@@ -116,6 +116,14 @@ class RobustRandomCutForest():
         # do nothing :-)
         # Return the classifier
         return self
+
+    def get_params(self, deep=True):
+        # suppose this estimator has parameters "alpha" and "recursive"
+        return {"num_trees": self.num_trees,
+                "tree_size": self.tree_size,
+                "contamination": self.contamination}
+
+
 
     def set_params(self, **parameters):
         for parameter, value in parameters.items():

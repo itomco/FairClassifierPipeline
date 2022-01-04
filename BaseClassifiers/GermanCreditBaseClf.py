@@ -93,6 +93,19 @@ class GermanBaseClf(BaseClf):
             X_test:pd.DataFrame = None,
             y_test:pd.Series = None
             ):
+        # https://www.kaggle.com/hendraherviawan/predicting-german-credit-default
+        # params2 = {
+        #     'n_estimators': 3000,  # 1a - compared to 100 in 1a
+        #     'objective': 'binary:logistic',  # 1a - same
+        #     'learning_rate': 0.005,  # 1a - 0.1 (20 times slower)
+        #     # 'gamma':0.01,
+        #     'subsample': 0.555,  # 1a - no subsampling
+        #     'colsample_bytree': 0.7,  # 1a - no col sumpling
+        #     'min_child_weight': 3,  # 1a -
+        #     'max_depth': 8,
+        #     # 'seed':1024,
+        #     'n_jobs': -1
+        # }
 
         XGBClassifier_params = {
             'n_estimators': 3000,
@@ -107,17 +120,17 @@ class GermanBaseClf(BaseClf):
             'n_jobs': -1,
             'use_label_encoder': False
         }
-        model_ = XGBClassifier(random_state = 42, **XGBClassifier_params)
         if X_test is not None and y_test is not None:
             eval_set = [(X_train, y_train), (X_test, y_test)]
-            model_.fit(X=X_train, y=y_train,eval_set=eval_set,
-                eval_metric='auc', early_stopping_rounds=100, verbose=False)
-            ntree_limit = model_.best_ntree_limit
+            model = XGBClassifier(**XGBClassifier_params).fit(X=X_train, y=y_train,
+                                                               eval_set=eval_set,eval_metric='auc',
+                                                               early_stopping_rounds = 100, verbose=False)
+            ntree_limit = model.best_ntree_limit
         else:
-            ntree_limit =  XGBClassifier(random_state = 42).get_num_boosting_rounds() #get default value (weaker but avoid fitting twice)
+            model = XGBClassifier(**XGBClassifier_params)
+            ntree_limit =  XGBClassifier().get_num_boosting_rounds() #avoid fitting twice (takes too long for heavy usage)
 
         # print(model.best_ntree_limit)
-        model = XGBClassifier(random_state = 42, **XGBClassifier_params)
         # print(f"model_.best_ntree_limit:{model_.best_ntree_limit}")
         model.set_params(**{'n_estimators': ntree_limit})
         model.fit(X=X_train,

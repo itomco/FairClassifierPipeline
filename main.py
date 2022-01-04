@@ -207,7 +207,7 @@ def showcase_pipeline_impact_on_base_model(config:Dict,
 
 if __name__ == '__main__':
     do_plots = False
-    for project_mode in ['bank','german']:
+    for project_mode in ['german']:
         # project_mode = 'german' # select 'bank' or 'german'
 
         ####-0 select config
@@ -258,8 +258,7 @@ if __name__ == '__main__':
         y_test = utils.to_int_srs(y_test)
 
         xgb_clf = base_clf.fit(X_train=X_train,
-                                y_train=y_train,
-                                X_test=X_test)
+                                y_train=y_train)
 
         y_pred, y_pred_proba = base_clf.predict(clf=xgb_clf,
                                                       X=X_train)
