@@ -121,6 +121,11 @@ class GermanBaseClf(BaseClf):
             'use_label_encoder': False
         }
         if X_test is not None and y_test is not None:
+            #THIS IS EXACTLY THE ORIGINAL CODE from: https://www.kaggle.com/hendraherviawan/predicting-german-credit-default
+            #There seems to be a "small problem" here as they include (X_test, y_test) as the second parameter in the 'eval set' param.
+            # following the documentation (https://xgboost.readthedocs.io/en/stable/python/python_api.html), though they
+            # specify "early_stopping_rounds" param, the early stopping might happen before based on the second element
+            # in the eval_set parameter. This looks as Future data leakage into the fitting stage thus obiviousely wrong pratice!!
             eval_set = [(X_train, y_train), (X_test, y_test)]
             model = XGBClassifier(**XGBClassifier_params).fit(X=X_train, y=y_train,
                                                                eval_set=eval_set,eval_metric='auc',
@@ -128,7 +133,7 @@ class GermanBaseClf(BaseClf):
             ntree_limit = model.best_ntree_limit
         else:
             model = XGBClassifier(**XGBClassifier_params)
-            ntree_limit =  XGBClassifier().get_num_boosting_rounds() #avoid fitting twice (takes too long for heavy usage)
+            ntree_limit =  XGBClassifier().get_num_boosting_rounds() #avoid future data leak and fitting twice (might be weaker much faster for heavy usage)
 
         # print(model.best_ntree_limit)
         # print(f"model_.best_ntree_limit:{model_.best_ntree_limit}")
