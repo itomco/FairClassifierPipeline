@@ -1,50 +1,30 @@
 import json
 from typing import *
 
-def create_german_config(config_name:str='german'):
+
+def create_german_config(config_name: str = 'german'):
     config = {}
-    config['sensitive_features'] = ['statussex','age']
+    config['sensitive_features'] = ['statussex', 'age']
     config['label_col'] = 'classification'
-    config['label_ordered_classes'] = ([1,2], [1,0]) #relevant for Fairness Positive Label Value
-
-    # numerical_str_features_stubs enable the following comfort generic settings:
-    # 1. in all cases where numerical value is sent as a string with or with out a prefix and / or a suffix, this would 'clean' this features values and convert to
-    #    int or float according to the actual column's value type
-    # 2. easier approach to define ordinal categorical features in case they are already properly ordered buy has some prefix and / or suffix to all values
-    config['numerical_str_features_stubs'] =    {
-                                                'otherinstallmentplans':('A14',None),
-                                                }
-
-    # https://archive.ics.uci.edu/ml/datasets/statlog+(german+credit+data)
-
-    # https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.OrdinalEncoder.html#
-    config['ordinal_categorial_features'] = {
-                                            'existingchecking':['A14','A11', 'A12', 'A13'],
-                                            'credithistory':['A30','A31','A32','A33','A34'],
-                                            'savings':['A65','A61','A62','A63','A64'],
-                                            'employmentsince':['A71','A72','A73','A74','A75'],
-                                            # 'installmentrate':[1,2,3,4],#8
-                                            'otherdebtors':['A101','A102','A103'],
-                                            # 'residencesince':[1,2,3,4],#11
-                                            'property':['A121','A122','A123','A124'],
-                                            # 'otherinstallmentplans':['A141','A142','A143'],
-                                            'housing':['A151','A152','A153'],
-                                            # 'existingcredits':[1,2,3,4],#16
-                                            'job':['A171','A172','A173','A174'],
-                                            # 'peopleliable':[1,2],#18
-                                            }
-
-    config['numeric_to_ord_cat'] = {
-                                    'age':[25,50]
-                                    }
-
+    config['label_ordered_classes'] = ([1, 2], [1, 0])  # relevant for Fairness Positive Label Value
+    config['numerical_str_features_stubs'] = {
+        'otherinstallmentplans': ('A14', None),
+        'credithistory': ('A3', None),
+        'employmentsince': ('A7', None),
+        'otherdebtors': ('A10', None),
+        'property': ('A12', None),
+        'housing': ('A15', None),
+        'job': ('A17', None),
+    }
+    config['ordinal_categorial_features'] = {'existingchecking': ['A14', 'A11', 'A12', 'A13'],
+                                            'savings': ['A65', 'A61', 'A62', 'A63', 'A64']}
+    config['numeric_to_ord_cat'] = {'age': [25, 50]}
     config['fairness_metrics'] = ['AOD', 'EOD']
     config['target_fairness_metric'] = 'AOD'
-
     config['max_sparse_col_threshold'] = 0.8
     config['data_path'] = './Data/german.data'
 
-    save_config(config_name=config_name,config=config)
+    save_config(config_name=config_name, config=config)
 
 def create_bank_config(config_name:str='bank'):
     config = {}
