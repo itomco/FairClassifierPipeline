@@ -1,0 +1,414 @@
+C:\Users\tomer_cohen\AppData\Local\Programs\Python\Python39\python.exe C:\ToDa\IDC\Y3\MLOps-3690\HW\FairClassifierPipeline\main.py
+
+####### I. Load Data ################################################################################################################ 
+
+BANK data loaded:
+   age         job  marital  education  ... pdays  previous poutcome   y
+0   30  unemployed  married    primary  ...    -1         0  unknown  no
+1   33    services  married  secondary  ...   339         4  failure  no
+2   35  management   single   tertiary  ...   330         1  failure  no
+
+[3 rows x 17 columns]
+
+####### II. Check fair pipeline impact on base model #################################################################################### 
+
+Showcase pipeline impact on base model performance considering Sensitive Feature: ###- AGE -###
+####### Base model ######### Confusion Matirx:
+Confusion Martix:
+[[773  28]
+ [ 68  36]]
+Classification Report:
+              precision    recall  f1-score   support
+
+           0     0.9191    0.9650    0.9415       801
+           1     0.5625    0.3462    0.4286       104
+
+    accuracy                         0.8939       905
+   macro avg     0.7408    0.6556    0.6851       905
+weighted avg     0.8782    0.8939    0.8826       905
+
+True Positive Rate [Recall(1)]: 0.34615384615384615
+False Positive Rate [1-RCL(0)]: 0.03495630461922597
+Accuracy with default threshold: 89.3923%
+
+extract final_columns from FeatureUnion ...
+####### Initial model ######### Confusion Matirx:
+Confusion Martix:
+[[774  27]
+ [ 65  39]]
+Classification Report:
+              precision    recall  f1-score   support
+
+           0     0.9225    0.9663    0.9439       801
+           1     0.5909    0.3750    0.4588       104
+
+    accuracy                         0.8983       905
+   macro avg     0.7567    0.6706    0.7014       905
+weighted avg     0.8844    0.8983    0.8882       905
+
+True Positive Rate [Recall(1)]: 0.375
+False Positive Rate [1-RCL(0)]: 0.033707865168539325
+Accuracy with default threshold: 89.8343%
+
+Base model vs Initial model performance comparison for sensitive feature 'age':
+                             base   initial
+age:aod                 -1.000000  0.458333
+age:eod                 -1.000000  0.666667
+age:accuracy             0.893923  0.898343
+age:TPR['1']             0.346154  0.375000
+age:FPR['1']             0.034956  0.033708
+age:macro_avg-precision  0.740822  0.756718
+age:macro_avg-recall     0.655599  0.670646
+age:macro_avg-f1-score   0.685053  0.701363
+age:AUC                  0.655599  0.670646
+
+######################################################################################################################################
+
+Showcase pipeline impact on base model performance considering Sensitive Feature: ###- MARITAL -###
+####### Base model ######### Confusion Matirx:
+Confusion Martix:
+[[775  26]
+ [ 58  46]]
+Classification Report:
+              precision    recall  f1-score   support
+
+           0     0.9304    0.9675    0.9486       801
+           1     0.6389    0.4423    0.5227       104
+
+    accuracy                         0.9072       905
+   macro avg     0.7846    0.7049    0.7357       905
+weighted avg     0.8969    0.9072    0.8997       905
+
+True Positive Rate [Recall(1)]: 0.4423076923076923
+False Positive Rate [1-RCL(0)]: 0.03245942571785269
+Accuracy with default threshold: 90.7182%
+
+extract final_columns from FeatureUnion ...
+####### Initial model ######### Confusion Matirx:
+Confusion Martix:
+[[778  23]
+ [ 57  47]]
+Classification Report:
+              precision    recall  f1-score   support
+
+           0     0.9317    0.9713    0.9511       801
+           1     0.6714    0.4519    0.5402       104
+
+    accuracy                         0.9116       905
+   macro avg     0.8016    0.7116    0.7457       905
+weighted avg     0.9018    0.9116    0.9039       905
+
+True Positive Rate [Recall(1)]: 0.4519230769230769
+False Positive Rate [1-RCL(0)]: 0.02871410736579276
+Accuracy with default threshold: 91.1602%
+
+Base model vs Initial model performance comparison for sensitive feature 'marital':
+                                 base   initial
+marital:aod                  0.116966  0.124949
+marital:eod                  0.218615  0.218615
+marital:accuracy             0.907182  0.911602
+marital:TPR['1']             0.442308  0.451923
+marital:FPR['1']             0.032459  0.028714
+marital:macro_avg-precision  0.784631  0.801583
+marital:macro_avg-recall     0.704924  0.711604
+marital:macro_avg-f1-score   0.735660  0.745665
+marital:AUC                  0.704924  0.711604
+
+######################################################################################################################################
+
+
+####### III. search for most fairness biased sensitive feature ############################################################################ 
+
+extract final_columns from FeatureUnion ...
+extract final_columns from FeatureUnion ...
+                  aod
+age:aod      0.458333
+marital:aod  0.124949
+Sensitive feature with highest un-fair bias based on fairness metric 'AOD' is: age 
+
+####### IV. find privileged and unprivileged groups in sensitive feature ################################################################### 
+
+extract final_columns from FeatureUnion ...
+snsftr_slctrt_sub_groups: prev=[(5.0, 6.0),57], unprev=[(0.0, 1.0, 2.0, 3.0, 4.0),3559]
+
+snsftr_groups_slctnrt:
+                    selection_rate  sub_groups
+sensitive_feature_0                           
+0.0                       0.128319           0
+1.0                        0.11037           0
+2.0                       0.098933           0
+3.0                       0.103311           0
+4.0                       0.172589           0
+5.0                       0.342105           1
+6.0                       0.473684           1
+
+
+####### V. Create & Fit a FairClassifier model ################################################################################################ 
+
+Number of GridSearch fits: 360
+100%|██████████| 360/360 [29:19<00:00,  4.89s/it]
+Gridsearch_cv total run time: 0:29:19.372244
+results:
+   mean_fit_time  std_fit_time  ...  std_test_f1_macro  rank_test_f1_macro
+0       2.675259      3.048299  ...           0.025432                  48
+1       1.351438      0.174876  ...           0.045355                  40
+2       1.124553      0.150634  ...           0.025056                   9
+
+[3 rows x 38 columns]
+
+####### VI. Check top fairness aware models' performance on un-seen (Test) data #################################################################### 
+
+Check performance of top 72 fairness aware trained models:
+100%|██████████| 72/72 [06:13<00:00,  5.19s/it]
+   index       eod       aod  f1_macro  tpr_diff  fpr_diff
+0     54  0.347826  0.190430  0.658353  0.347826  0.033033
+1      1  0.444444  0.238739  0.673521  0.444444  0.033033
+2     61  0.266667  0.258333  0.632318  0.266667  0.250000
+3     12  0.466667  0.269919  0.683246  0.466667  0.073171
+4     18  0.304348  0.277174  0.637984  0.304348  0.250000
+5     68  0.333333  0.291667  0.615457  0.333333  0.250000
+6     35  0.333333  0.291667  0.619896  0.333333  0.250000
+7     51  0.333333  0.291667  0.626001  0.333333  0.250000
+8     14  0.333333  0.291667  0.636624  0.333333  0.250000
+9     69  0.333333  0.291667  0.638012  0.333333  0.250000
+
+
+####### Fair Classifier model ######### Confusion Matirx:
+Confusion Martix:
+[[782  19]
+ [ 80  24]]
+Classification Report:
+              precision    recall  f1-score   support
+
+           0     0.9072    0.9763    0.9405       801
+           1     0.5581    0.2308    0.3265       104
+
+    accuracy                         0.8906       905
+   macro avg     0.7327    0.6035    0.6335       905
+weighted avg     0.8671    0.8906    0.8699       905
+
+True Positive Rate [Recall(1)]: 0.23076923076923078
+False Positive Rate [1-RCL(0)]: 0.02372034956304619
+Accuracy with default threshold: 89.0608%
+
+                             base   initial   FairClf
+age:aod                 -1.000000  0.458333  0.190430
+age:eod                 -1.000000  0.666667  0.347826
+age:accuracy             0.893923  0.898343  0.890608
+age:TPR['1']             0.346154  0.375000  0.230769
+age:FPR['1']             0.034956  0.033708  0.023720
+age:macro_avg-precision  0.740822  0.756718  0.732666
+age:macro_avg-recall     0.655599  0.670646  0.603524
+age:macro_avg-f1-score   0.685053  0.701363  0.633500
+age:AUC                  0.655599  0.670646  0.603524
+
+
+####################################################################################################################################
+
+
+
+####### I. Load Data ################################################################################################################ 
+
+GERMAN data loaded:
+  existingchecking  duration  ... foreignworker classification
+0              A11         6  ...          A201              1
+1              A12        48  ...          A201              2
+2              A14        12  ...          A201              1
+
+[3 rows x 21 columns]
+
+####### II. Check fair pipeline impact on base model #################################################################################### 
+
+Showcase pipeline impact on base model performance considering Sensitive Feature: ###- STATUSSEX -###
+####### Base model ######### Confusion Matirx:
+Confusion Martix:
+[[ 17  43]
+ [  9 131]]
+Classification Report:
+              precision    recall  f1-score   support
+
+           0     0.6538    0.2833    0.3953        60
+           1     0.7529    0.9357    0.8344       140
+
+    accuracy                         0.7400       200
+   macro avg     0.7034    0.6095    0.6149       200
+weighted avg     0.7232    0.7400    0.7027       200
+
+True Positive Rate [Recall(1)]: 0.9357142857142857
+False Positive Rate [1-RCL(0)]: 0.7166666666666667
+Accuracy with default threshold: 74.0000%
+
+extract final_columns from FeatureUnion ...
+####### Initial model ######### Confusion Matirx:
+Confusion Martix:
+[[ 18  42]
+ [ 10 130]]
+Classification Report:
+              precision    recall  f1-score   support
+
+           0     0.6429    0.3000    0.4091        60
+           1     0.7558    0.9286    0.8333       140
+
+    accuracy                         0.7400       200
+   macro avg     0.6993    0.6143    0.6212       200
+weighted avg     0.7219    0.7400    0.7061       200
+
+True Positive Rate [Recall(1)]: 0.9285714285714286
+False Positive Rate [1-RCL(0)]: 0.7
+Accuracy with default threshold: 74.0000%
+
+Base model vs Initial model performance comparison for sensitive feature 'statussex':
+                                   base   initial
+statussex:aod                  0.307471  0.272989
+statussex:eod                  0.448276  0.379310
+statussex:accuracy             0.740000  0.740000
+statussex:TPR['1']             0.935714  0.928571
+statussex:FPR['1']             0.716667  0.700000
+statussex:macro_avg-precision  0.703360  0.699336
+statussex:macro_avg-recall     0.609524  0.614286
+statussex:macro_avg-f1-score   0.614872  0.621212
+statussex:AUC                  0.609524  0.614286
+
+######################################################################################################################################
+
+Showcase pipeline impact on base model performance considering Sensitive Feature: ###- AGE -###
+####### Base model ######### Confusion Matirx:
+Confusion Martix:
+[[ 21  39]
+ [  8 132]]
+Classification Report:
+              precision    recall  f1-score   support
+
+           0     0.7241    0.3500    0.4719        60
+           1     0.7719    0.9429    0.8489       140
+
+    accuracy                         0.7650       200
+   macro avg     0.7480    0.6464    0.6604       200
+weighted avg     0.7576    0.7650    0.7358       200
+
+True Positive Rate [Recall(1)]: 0.9428571428571428
+False Positive Rate [1-RCL(0)]: 0.65
+Accuracy with default threshold: 76.5000%
+
+extract final_columns from FeatureUnion ...
+####### Initial model ######### Confusion Matirx:
+Confusion Martix:
+[[ 22  38]
+ [  4 136]]
+Classification Report:
+              precision    recall  f1-score   support
+
+           0     0.8462    0.3667    0.5116        60
+           1     0.7816    0.9714    0.8662       140
+
+    accuracy                         0.7900       200
+   macro avg     0.8139    0.6690    0.6889       200
+weighted avg     0.8010    0.7900    0.7599       200
+
+True Positive Rate [Recall(1)]: 0.9714285714285714
+False Positive Rate [1-RCL(0)]: 0.6333333333333333
+Accuracy with default threshold: 79.0000%
+
+Base model vs Initial model performance comparison for sensitive feature 'age':
+                             base   initial
+age:aod                 -1.000000  0.194002
+age:eod                 -1.000000  0.340385
+age:accuracy             0.765000  0.790000
+age:TPR['1']             0.942857  0.971429
+age:FPR['1']             0.650000  0.633333
+age:macro_avg-precision  0.748034  0.813882
+age:macro_avg-recall     0.646429  0.669048
+age:macro_avg-f1-score   0.660392  0.688935
+age:AUC                  0.646429  0.669048
+
+######################################################################################################################################
+
+
+####### III. search for most fairness biased sensitive feature ############################################################################ 
+
+extract final_columns from FeatureUnion ...
+extract final_columns from FeatureUnion ...
+                    aod
+statussex:aod  0.272989
+age:aod        0.194002
+Sensitive feature with highest un-fair bias based on fairness metric 'AOD' is: statussex 
+
+####### IV. find privileged and unprivileged groups in sensitive feature ################################################################### 
+
+extract final_columns from FeatureUnion ...
+snsftr_slctrt_sub_groups: prev=[('statussex_A91', 'statussex_A93', 'statussex_A94'),552], unprev=[('statussex_A92',),248]
+
+snsftr_groups_slctnrt:
+                    selection_rate  sub_groups
+sensitive_feature_0                           
+statussex_A91                 0.85           1
+statussex_A92             0.790323           0
+statussex_A93             0.861048           1
+statussex_A94             0.849315           1
+
+
+####### V. Create & Fit a FairClassifier model ################################################################################################ 
+
+Number of GridSearch fits: 360
+100%|██████████| 360/360 [15:05<00:00,  2.52s/it]
+Gridsearch_cv total run time: 0:15:05.498373
+results:
+   mean_fit_time  std_fit_time  ...  std_test_f1_macro  rank_test_f1_macro
+0       1.755714      2.390304  ...           0.044068                  27
+1       0.550202      0.029087  ...           0.059588                  55
+2       0.223781      0.008518  ...           0.036684                  29
+
+[3 rows x 38 columns]
+
+####### VI. Check top fairness aware models' performance on un-seen (Test) data #################################################################### 
+
+Check performance of top 72 fairness aware trained models:
+100%|██████████| 72/72 [03:04<00:00,  2.56s/it]
+   index       eod       aod  f1_macro  tpr_diff  fpr_diff
+0      7  0.166667  0.117424  0.573801  0.166667  0.068182
+1     33  0.227273  0.126136  0.546213  0.025000  0.227273
+2     37  0.166667  0.155747  0.662525  0.166667  0.144828
+3     35  0.318182  0.171591  0.568894  0.025000  0.318182
+4     50  0.318182  0.171591  0.597949  0.025000  0.318182
+5     46  0.318182  0.184091  0.605248  0.050000  0.318182
+6     12  0.363636  0.219318  0.629684  0.075000  0.363636
+7     19  0.310345  0.238506  0.609375  0.166667  0.310345
+8     53  0.318182  0.242424  0.552313  0.166667  0.318182
+9     13  0.318182  0.242424  0.593128  0.166667  0.318182
+
+
+####### Fair Classifier model ######### Confusion Matirx:
+Confusion Martix:
+[[ 19  41]
+ [  7 133]]
+Classification Report:
+              precision    recall  f1-score   support
+
+           0     0.7308    0.3167    0.4419        60
+           1     0.7644    0.9500    0.8471       140
+
+    accuracy                         0.7600       200
+   macro avg     0.7476    0.6333    0.6445       200
+weighted avg     0.7543    0.7600    0.7256       200
+
+True Positive Rate [Recall(1)]: 0.95
+False Positive Rate [1-RCL(0)]: 0.6833333333333333
+Accuracy with default threshold: 76.0000%
+
+                                   base   initial   FairClf
+statussex:aod                  0.307471  0.272989  0.117424
+statussex:eod                  0.448276  0.379310  0.166667
+statussex:accuracy             0.740000  0.740000  0.760000
+statussex:TPR['1']             0.935714  0.928571  0.950000
+statussex:FPR['1']             0.716667  0.700000  0.683333
+statussex:macro_avg-precision  0.703360  0.699336  0.747569
+statussex:macro_avg-recall     0.609524  0.614286  0.633333
+statussex:macro_avg-f1-score   0.614872  0.621212  0.644497
+statussex:AUC                  0.609524  0.614286  0.633333
+
+
+####################################################################################################################################
+
+
+
+Process finished with exit code 0
