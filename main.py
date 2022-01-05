@@ -1,89 +1,21 @@
 #Importing required libraries
 import json
-# from google.colab import drive
-# import requests
-import zipfile
 import pandas as pd
 import numpy as np
-import sklearn
 from typing import *
-from collections import OrderedDict
 from datetime import datetime
 #
-# %matplotlib inline
-# import matplotlib.pyplot as plt
-# import seaborn as sns
-# sns.set_context('notebook')
-# sns.set_style(style='darkgrid')
-
-#tomer added
-from scipy import stats
-import statsmodels.formula.api as smf
-
-from collections import defaultdict
-
 np.random.seed(sum(map(ord, "aesthetics")))
 
-from sklearn.datasets import make_classification
-from sklearn.model_selection import learning_curve
 from sklearn.metrics import classification_report,confusion_matrix, roc_curve, roc_auc_score, auc, accuracy_score
-from sklearn.model_selection import ShuffleSplit,train_test_split, cross_val_score, GridSearchCV
-from sklearn.preprocessing import OneHotEncoder, LabelEncoder, label_binarize, StandardScaler, MinMaxScaler
-from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.pipeline import Pipeline as pipe
-from sklearn.pipeline import FeatureUnion
-from sklearn.preprocessing import OrdinalEncoder
-from sklearn.compose import make_column_transformer, ColumnTransformer
-from sklearn.impute import SimpleImputer
-from sklearn import set_config
-from sklearn_pandas import DataFrameMapper
-from sklearn.base import ClassifierMixin
-from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
-from sklearn.model_selection import RepeatedStratifiedKFold
-from sklearn.metrics import fbeta_score,f1_score
-from sklearn.metrics import make_scorer
-from sklearn.preprocessing import FunctionTransformer
-
-#anomaly detection models
-from sklearn.ensemble import IsolationForest
-from sklearn.svm import OneClassSVM
-from sklearn.neighbors import LocalOutlierFactor
-from sklearn.covariance import EllipticEnvelope
-import rrcf
-
-#classifier
-import xgboost
-from xgboost import XGBClassifier
-
-
-from pprint import pprint
-
-# import warnings
-# warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-#fairlearn
-from fairlearn.metrics import (
-    MetricFrame,
-    true_positive_rate,
-    false_positive_rate,
-    false_negative_rate,
-    selection_rate,
-    count,
-    equalized_odds_difference
-)
-import itertools
-
 from FairClassifierPipeline import FairPipeline as fair_ppl
 from FairClassifierPipeline import Utils as utils
 from BaseClassifiers.BaseClf import BaseClf
 from BaseClassifiers import BaseClfCreator
-# from BaseClassifiers import GermanCreditBaseClf as base_clf
-# from BaseClassifiers.GermanCreditBaseClf import GermanBaseClf as base_clf_class
 from FairClassifierPipeline.FairClassifier import FairClassifier
 from FairClassifierPipeline import FairnessUtils as frns_utils
 from Configs import Configurator as cfg
 from Data import DataLoader as data_loader
-# print(xgboost.__version__)
 
 create_config = True
 if create_config:

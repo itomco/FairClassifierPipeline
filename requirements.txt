@@ -11,3 +11,4 @@ matplotlib~=3.5.1
 seaborn~=0.11.2
 tqdm~=4.62.3
 sklearn_pandas~=2.2.0
+bokeh~=2.3.3
