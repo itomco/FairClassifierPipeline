@@ -152,7 +152,7 @@ def is_categorial(feature_values: pd.Series, check_number_str:bool = True) -> bo
 #https://towardsdatascience.com/how-to-use-sklearn-pipelines-for-ridiculously-neat-code-a61ab66ca90d
 # https://stackoverflow.com/questions/45515031/how-to-remove-columns-with-too-many-missing-values-in-python
 #remove columns with too high ratio of missing data
-def remove_low_data_columns(df : pd.DataFrame, threshold = 0.8) -> pd.DataFrame:
+def remove_low_data_columns(df : pd.DataFrame, threshold = 0.2) -> pd.DataFrame:
     return df.drop(columns=list(df.loc[:,list((100*(df.isnull().sum()/len(df.index)) >= threshold))].columns), axis=1)
 
 # https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.FunctionTransformer.html?highlight=functiontransformer#sklearn.preprocessing.FunctionTransformer
