@@ -131,3 +131,5 @@ dmypy.json
 .idea/
 
 gscv_results/*
+Notebooks/*
+__pycache__/*

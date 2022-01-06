@@ -1,70 +1,13 @@
-#Importing required libraries
-import json
-# from google.colab import drive
-# import requests
-import zipfile
+#Import required libraries
 import pandas as pd
 import numpy as np
-import sklearn
 from typing import *
-from datetime import datetime
-from tqdm import tqdm
-# tqdm().pandas()
-from collections import OrderedDict
-
-#
-# %matplotlib inline
-import matplotlib.pyplot as plt
-import seaborn as sns
-sns.set_context('notebook')
-sns.set_style(style='darkgrid')
-
-#tomer added
-from scipy import stats
-import statsmodels.formula.api as smf
-
 
 np.random.seed(sum(map(ord, "aesthetics")))
 
-from sklearn.datasets import make_classification
-from sklearn.model_selection import learning_curve
-from sklearn.metrics import classification_report,confusion_matrix, roc_curve, roc_auc_score, auc, accuracy_score
-from sklearn.model_selection import ShuffleSplit,train_test_split, cross_val_score, GridSearchCV
-from sklearn.preprocessing import OneHotEncoder, LabelEncoder, label_binarize, StandardScaler, MinMaxScaler
-from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.pipeline import Pipeline as pipe
-from sklearn.pipeline import FeatureUnion
-from sklearn.preprocessing import OrdinalEncoder
-from sklearn.compose import make_column_transformer, ColumnTransformer
-from sklearn.impute import SimpleImputer
-from sklearn import set_config
-from sklearn_pandas import DataFrameMapper
-from sklearn.base import ClassifierMixin
-from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
-from sklearn.model_selection import RepeatedStratifiedKFold
-from sklearn.metrics import fbeta_score,f1_score
-from sklearn.metrics import make_scorer
-from sklearn.preprocessing import FunctionTransformer
-
-#anomaly detection models
-from sklearn.ensemble import IsolationForest
-from sklearn.svm import OneClassSVM
-from sklearn.neighbors import LocalOutlierFactor
-from sklearn.covariance import EllipticEnvelope
-import rrcf
-
-#fairlearn
-# false_positive_rate_difference and true_positive_rate_difference metrics are derived metrics
-# created on-the-fly at import stage using make_derived_metric(...) at fairlearn file: _generated_metrics.py
-# therefore they are not recognized by pycharm before the import is actually performed
-# similar usage official example: https://github.com/fairlearn/fairlearn/blob/main/notebooks/Binary%20Classification%20with%20the%20UCI%20Credit-card%20Default%20Dataset.ipynb
 from fairlearn.metrics import (
     MetricFrame,
-    true_positive_rate,
-    false_positive_rate,
-    false_negative_rate,
     selection_rate,
-    count,
     false_positive_rate_difference,
     true_positive_rate_difference,
     equalized_odds_difference
@@ -80,10 +23,6 @@ def merge_feature_onehot_columns(feature_name: str, data: pd.DataFrame) -> pd.Se
     feature_df = pd.DataFrame(data=[''] * data.shape[0], columns=[feature_name])
     for col in sensitive_feature_one_hot_columns:
         feature_df.loc[(data[col].values == 1)] = col
-
-    # sensitive_test_feature = pd.DataFrame(data=['']*preprocessed_test_data.shape[0], columns=[sensitive_feature_name])
-    # for col in sensitive_feature_one_hot_columns:
-    #     sensitive_test_feature.loc[preprocessed_test_data[col] == 1] = col
 
     return feature_df[feature_name]
 

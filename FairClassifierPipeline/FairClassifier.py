@@ -1,75 +1,25 @@
-#Importing required libraries
-import json
-# from google.colab import drive
-# import requests
-import zipfile
+#Import required libraries
 import pandas as pd
 import numpy as np
-import sklearn
 from typing import *
 from datetime import datetime
-from collections import OrderedDict
-
-#
-# %matplotlib inline
-import matplotlib.pyplot as plt
-import seaborn as sns
-sns.set_context('notebook')
-sns.set_style(style='darkgrid')
-
-#tomer added
-from scipy import stats
-import statsmodels.formula.api as smf
-
 
 np.random.seed(sum(map(ord, "aesthetics")))
 
-from sklearn.datasets import make_classification
-from sklearn.model_selection import learning_curve
-from sklearn.metrics import classification_report,confusion_matrix, roc_curve, roc_auc_score, auc, accuracy_score
-from sklearn.model_selection import ShuffleSplit,train_test_split, cross_val_score, GridSearchCV
-from sklearn.preprocessing import OneHotEncoder, LabelEncoder, label_binarize, StandardScaler, MinMaxScaler
-from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.model_selection import GridSearchCV
+from sklearn.base import BaseEstimator
 from sklearn.pipeline import Pipeline as pipe
-from sklearn.pipeline import FeatureUnion
-from sklearn.preprocessing import OrdinalEncoder
-from sklearn.compose import make_column_transformer, ColumnTransformer
-from sklearn.impute import SimpleImputer
-from sklearn import set_config
-from sklearn_pandas import DataFrameMapper
 from sklearn.base import ClassifierMixin
-from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
+from sklearn.utils.validation import check_is_fitted
 from sklearn.model_selection import RepeatedStratifiedKFold
-from sklearn.metrics import fbeta_score,f1_score
+from sklearn.metrics import f1_score
 from sklearn.metrics import make_scorer
-from sklearn.preprocessing import FunctionTransformer
 
-#anomaly detection models
-from sklearn.ensemble import IsolationForest
-from sklearn.svm import OneClassSVM
-from sklearn.neighbors import LocalOutlierFactor
-from sklearn.covariance import EllipticEnvelope
-import rrcf
-
-#fairlearn
-# false_positive_rate_difference and true_positive_rate_difference metrics are derived metrics
-# created on-the-fly at import stage using make_derived_metric(...) at fairlearn file: _generated_metrics.py
-# therefore they are not recognized by pycharm before the import is actually performed
-# similar usage official example: https://github.com/fairlearn/fairlearn/blob/main/notebooks/Binary%20Classification%20with%20the%20UCI%20Credit-card%20Default%20Dataset.ipynb
 from fairlearn.metrics import (
-    MetricFrame,
-    true_positive_rate,
-    false_positive_rate,
-    false_negative_rate,
-    selection_rate,
-    count,
     false_positive_rate_difference,
     true_positive_rate_difference,
-    equalized_odds_difference
 )
 #classifier
-from xgboost import XGBClassifier
-from FairClassifierPipeline.RobustRandomCutForest import RobustRandomCutForest as RRCF
 from FairClassifierPipeline import FairPipeline as fair_ppl
 import FairClassifierPipeline.Utils as utils
 from BaseClassifiers.BaseClf import BaseClf
@@ -82,17 +32,8 @@ from pprint import pprint
 # tqdm().pandas()
 from tqdm import tqdm
 
-# import warnings
-# warnings.filterwarnings("ignore", category=DeprecationWarning)
-
 #fairlearn
 from fairlearn.metrics import (
-    MetricFrame,
-    true_positive_rate,
-    false_positive_rate,
-    false_negative_rate,
-    selection_rate,
-    count,
     equalized_odds_difference
 )
 import itertools
@@ -330,18 +271,6 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
             num_iters *= len(params_set)
         print(f"Number of GridSearch fits: {num_iters}")
 
-
-        #best standard metirics for imbalanced data is probably fbeta_<x> (f1 is the base case)
-        # https://neptune.ai/blog/f1-score-accuracy-roc-auc-pr-auc#2 <--- IMPORTANT REFERENCE !!!
-
-        # Initializethe CV object
-        # https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.GridSearchCV.html
-        # https://scikit-learn.org/stable/modules/grid_search.html#multimetric-grid-search
-        # https://scikit-learn.org/stable/auto_examples/model_selection/plot_multi_metric_evaluation.html
-        # https://datascience.stackexchange.com/questions/43793/how-to-get-mean-test-scores-from-gridsearchcv-with-multiple-scorers-scikit-lea
-        # https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.GridSearchCV.html
-        # https://hub.gke2.mybinder.org/user/scikit-learn-scikit-learn-s0vnxwm7/lab/tree/notebooks/auto_examples/model_selection/plot_learning_curve.ipynb
-        # https://hub.gke2.mybinder.org/user/scikit-learn-scikit-learn-s0vnxwm7/lab/tree/notebooks/auto_examples/model_selection/plot_roc.ipynb
         pipe_cv = None
 
         with tqdm(total=num_iters) as pbar:
@@ -414,7 +343,6 @@ class FairClassifier(ClassifierMixin, BaseEstimator):
 
             t0 = datetime.now()
 
-            # gridsearch_cv fit progress bar: https://towardsdatascience.com/progress-bars-in-python-4b44e8a4c482
             self._pipe_cv.fit(X_train, y_train)
 
             total_time_secs = datetime.now() -t0

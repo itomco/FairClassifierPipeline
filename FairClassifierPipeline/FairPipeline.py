@@ -1,77 +1,25 @@
-#Importing required libraries
-import json
-# from google.colab import drive
-# import requests
-import zipfile
+#Import required libraries
 import pandas as pd
 import numpy as np
 import sklearn
 from typing import *
-from collections import OrderedDict
-
-#
-# %matplotlib inline
-# import matplotlib.pyplot as plt
-# import seaborn as sns
-# sns.set_context('notebook')
-# sns.set_style(style='darkgrid')
-
-#tomer added
-from scipy import stats
-import statsmodels.formula.api as smf
-
 
 np.random.seed(sum(map(ord, "aesthetics")))
 
-from sklearn.datasets import make_classification
-from sklearn.model_selection import learning_curve
-from sklearn.metrics import classification_report,confusion_matrix, roc_curve, roc_auc_score, auc, accuracy_score
-from sklearn.model_selection import ShuffleSplit,train_test_split, cross_val_score, GridSearchCV
-from sklearn.preprocessing import OneHotEncoder, LabelEncoder, label_binarize, StandardScaler, MinMaxScaler
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OneHotEncoder, MinMaxScaler
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline as pipe
 from sklearn.pipeline import FeatureUnion
 from sklearn.preprocessing import OrdinalEncoder
-from sklearn.compose import make_column_transformer, ColumnTransformer
 from sklearn.impute import SimpleImputer
-from sklearn import set_config
 from sklearn_pandas import DataFrameMapper
-from sklearn.base import ClassifierMixin
-from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
-from sklearn.model_selection import RepeatedStratifiedKFold
-from sklearn.metrics import fbeta_score,f1_score
-from sklearn.metrics import make_scorer
+from sklearn.utils.validation import check_is_fitted
 from sklearn.preprocessing import FunctionTransformer
-
-#anomaly detection models
-from sklearn.ensemble import IsolationForest
-from sklearn.svm import OneClassSVM
-from sklearn.neighbors import LocalOutlierFactor
-from sklearn.covariance import EllipticEnvelope
-import rrcf
-
-#classifier
-from xgboost import XGBClassifier
-
-
-from pprint import pprint
 
 import warnings
 warnings.filterwarnings("ignore", 'The covariance matrix associated to your dataset is not full rank')
 
-#fairlearn
-from fairlearn.metrics import (
-    MetricFrame,
-    true_positive_rate,
-    false_positive_rate,
-    false_negative_rate,
-    selection_rate,
-    count,
-    false_negative_rate_difference,
-    equalized_odds_difference
-)
-import itertools
-from FairClassifierPipeline.FairClassifier import FairClassifier as fair_clf
 from FairClassifierPipeline import Utils as utils
 from FairClassifierPipeline import FairnessUtils as frns_utils
 
@@ -148,22 +96,13 @@ def is_categorial(feature_values: pd.Series, check_number_str:bool = True) -> bo
             
 ############################## Custom Sklearn Pipeline Components #################################
 
-#Pipeline Functions to be used by FunctionTransformers
-#https://towardsdatascience.com/how-to-use-sklearn-pipelines-for-ridiculously-neat-code-a61ab66ca90d
-# https://stackoverflow.com/questions/45515031/how-to-remove-columns-with-too-many-missing-values-in-python
 #remove columns with too high ratio of missing data
 def remove_low_data_columns(df : pd.DataFrame, threshold = 0.2) -> pd.DataFrame:
     return df.drop(columns=list(df.loc[:,list((100*(df.isnull().sum()/len(df.index)) >= threshold))].columns), axis=1)
 
-# https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.FunctionTransformer.html?highlight=functiontransformer#sklearn.preprocessing.FunctionTransformer
 
-#FunctionTransformer(remove_low_data_columns,kw_args={'threshold':0.8}).fit_transform(data).head(3)            
-
-#IMPORTANT!! - remove samples with no value label column
 def remove_rows_wo_value_for_column(df : pd.DataFrame, label_col_name:str) -> pd.DataFrame:
     return df.loc[~df[label_col_name].isna()].copy()
-
-# https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.FunctionTransformer.html?highlight=functiontransformer#sklearn.preprocessing.FunctionTransformer
 
 def convert_numeric_cols_to_ord_cat(df : pd.DataFrame, cont_to_cat_cols_settings:Dict[str,List[int]]):
     df = df.copy()
@@ -180,8 +119,6 @@ def convert_numeric_cols_to_ord_cat(df : pd.DataFrame, cont_to_cat_cols_settings
                 df.loc[split_point <= df[col],col] = i+1
     
     return df
-
-#FunctionTransformer(convert_numeric_cols_to_ord_cat,kw_args={'cont_to_cat_cols_settings':config['numeric_to_ord_cat']}).fit_transform(data).head(3)
 
 def numeric_str_feature_encoder(df : pd.DataFrame, numerical_str_features_stubs : Dict, unknown_handling = 'ignore', non_numeric_handling='ignore'):
     unknown_numeric_columns = set(numerical_str_features_stubs.keys())-set(df.columns)
@@ -227,12 +164,6 @@ def numeric_str_feature_encoder(df : pd.DataFrame, numerical_str_features_stubs 
     return df
     
 ######################################### columns extractors ######################################
-# def extract_categorical_cols(df : pd.DataFrame):
-#     categorical_cols = [col for col in df.columns if is_categorial(df[col]) ]
-#     # print(f"extract_categorical_cols columns: {categorical_cols}")
-#     return df.loc[:,categorical_cols]
-
-# extract_categorical_cols_FT = FunctionTransformer(extract_categorical_cols)
 
 class LabelColExtractor(BaseEstimator, TransformerMixin ):
     def __init__(self, label_col_name:str):
@@ -330,13 +261,6 @@ class OrdinalCategoricalColsExtractor(BaseEstimator, TransformerMixin, ColumnsSe
         # print(f"extract_categorical_cols columns: {categorical_cols}")
         return X.loc[:,self.categorical_cols].copy()
 
-# def extract_non_categorical_cols(df : pd.DataFrame):
-#     non_categorical_cols = [col for col in df.columns if is_categorial(df[col]) == False]
-#     # print(f"extract_non_categorical_cols columns: {non_categorical_cols}")
-#     return df.loc[:,non_categorical_cols]
-
-# extract_non_categorical_cols_FT = FunctionTransformer(extract_non_categorical_cols)
-
 
 class NonCategoricalColsExtractor(BaseEstimator, TransformerMixin ):
     def __init__(self, label_col_name:str, include_label_col:bool=False,
@@ -430,19 +354,6 @@ class OrdinalCatEncoder(BaseEstimator, TransformerMixin ):
 class AggregatedSubGroupsImputer(BaseEstimator, TransformerMixin):
     '''
     Class used for imputing missing values in a pd.DataFrame using either mean or median of a group.
-    
-    Parameters
-    ----------    
-    group_cols : list
-        List of columns used for calculating the aggregated value 
-    columns_to_impute : List
-        The name of the columns to impute
-    metric : str
-        The metric to be used for remplacement, can be one of ['mean', 'median']
-    Returns
-    -------
-    X : array-like
-        The array with imputed values in the target column
     '''
     def __init__(self, group_cols:Union[None,List[str]], 
                  columns_to_impute:Union[None,List[str]] = None, 
@@ -653,15 +564,10 @@ def get_columns_transformer(config:Dict) -> FeatureUnion:
     categorical_numerical_preprocessor = FeatureUnion( 
         [
             ('label', pipe(steps=[
-                    # ('debug_label_start',FunctionTransformer(pipeline_debug, kw_args={'caller_msg':'label_start'})),
-                    ('extract_label_col',LabelColExtractor(label_col_name = config['label_col'])), 
-                    # https://stackoverflow.com/questions/55953284/sklearn-compose-columntransformer-fit-transform-takes-2-positional-arguments/55963010
-                    # ('debug_label_end',FunctionTransformer(pipeline_debug, kw_args={'caller_msg':'label_before_encoder'})),
+                    ('extract_label_col',LabelColExtractor(label_col_name = config['label_col'])),
                     ('label_encoder',LabelCatgoricalEncoder(label_col=config['label_col'],label_col_cat_settings=config['label_ordered_classes'])),
-                    # ('label_encoder',DataFrameMapper(label_ordinal_encoder, input_df=True, df_out=True)),
             ])),
             ('num', pipe(steps=[
-                    # ('debug_num_start',FunctionTransformer(pipeline_debug, kw_args={'caller_msg':'num_start'})),
                     ('extract_non_categorical_cols',NonCategoricalColsExtractor(label_col_name = config['label_col'],
                                                                                 include_label_col = True,
                                                                                 must_included_cols = [config['sensitive_feature']])), 
@@ -669,31 +575,26 @@ def get_columns_transformer(config:Dict) -> FeatureUnion:
                                                               group_cols = [config['sensitive_feature'],config['label_col']], 
                                                               group_cols_to_discard=[config['sensitive_feature'],config['label_col']], 
                                                               add_indicator=True)),
-                    # ('debug_num_end',FunctionTransformer(pipeline_debug, kw_args={'caller_msg':'num_after_imputer'})),
                     ('num_minmax_scaler',MinMaxScaler()),
             ])),
             ('cat_onehot', pipe(steps=[
-                    # ('debug_onehot_start',FunctionTransformer(pipeline_debug, kw_args={'caller_msg':'onehot_start'})),
-                    ('onehot_cat_extractor',onehot_cat_cols_extractor), 
+                    ('onehot_cat_extractor',onehot_cat_cols_extractor),
                     ('onehot_cat_ags_imputer',
                         AggregatedSubGroupsImputer(strategy='most_frequent',
                                                    group_cols = [config['sensitive_feature'],config['label_col']], 
                                                    group_cols_to_discard=[config['label_col']], 
                                                    add_indicator=True,
                                                    cols_selector = onehot_cat_cols_extractor)),
-                    # ('debug_onehot_end',FunctionTransformer(pipeline_debug, kw_args={'caller_msg':'onehot_after_imputer'})),
-                    ('onehot_cat_encoder', 
+                    ('onehot_cat_encoder',
                         OneHotEncoder(handle_unknown='ignore', drop='if_binary', sparse=False)),
             ])),
             ('cat_ordinal', pipe(steps=[
-                    #('debug_ord_start',FunctionTransformer(pipeline_debug, kw_args={'caller_msg':'ord_start'})),
-                    ('ord_cat_extractor',ordinal_cat_cols_extractor), 
+                    ('ord_cat_extractor',ordinal_cat_cols_extractor),
                     ('ord_cat_ags_imputer',AggregatedSubGroupsImputer(strategy='most_frequent', 
                                                               group_cols = [config['sensitive_feature'],config['label_col']], 
                                                               group_cols_to_discard=[config['label_col']], 
                                                               add_indicator=True,
                                                               cols_selector = ordinal_cat_cols_extractor)),
-                    #('debug_ord_end',FunctionTransformer(pipeline_debug, kw_args={'caller_msg':'ord_end'})),
                     ('ordinal_encoder',OrdinalCatEncoder(ordinal_cols_selector = ordinal_cat_cols_extractor, ordinal_cat_settings=config['ordinal_categorial_features'])),
             ]))
         ])

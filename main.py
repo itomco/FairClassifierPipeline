@@ -4,10 +4,10 @@ import pandas as pd
 import numpy as np
 from typing import *
 from datetime import datetime
-#
+
 np.random.seed(sum(map(ord, "aesthetics")))
 
-from sklearn.metrics import classification_report,confusion_matrix, roc_curve, roc_auc_score, auc, accuracy_score
+from sklearn.metrics import classification_report
 from FairClassifierPipeline import FairPipeline as fair_ppl
 from FairClassifierPipeline import Utils as utils
 from BaseClassifiers.BaseClf import BaseClf
@@ -164,7 +164,7 @@ if __name__ == '__main__':
                                                                                        data=data.copy(),
                                                                                         do_plots = do_plots)
 
-        ####-4. search for most fairness biased sensitive feature
+        ####-3. search for most fairness biased sensitive feature
         print('\n####### III. search for most fairness biased sensitive feature ############################################################################ \n')
 
         sensitive_feature = FairClassifier.get_most_biased_sensitive_feature(data=data.copy(),
@@ -175,7 +175,7 @@ if __name__ == '__main__':
         print(f"Sensitive feature with highest un-fair bias based on fairness metric '{target_fairness_metric}' is: {sensitive_feature} ")
 
 
-        ####-5. find privileged and unprivileged groups in sensitive feature
+        ####-4. find privileged and unprivileged groups in sensitive feature
         print('\n####### IV. find privileged and unprivileged groups in sensitive feature ################################################################### \n')
 
         config = load_config(config_name=project_mode)
@@ -209,7 +209,7 @@ if __name__ == '__main__':
         print(f"snsftr_slctrt_sub_groups: prev=[{snsftr_slctrt_sub_groups[1]},{prev_size}], unprev=[{snsftr_slctrt_sub_groups[0]},{unprev_size}]\n")
         print(f"snsftr_groups_slctnrt:\n{snsftr_groups_slctnrt}\n")
 
-        ####-6. run gridsearch_cv with anomaly samples removal
+        ####-5. run gridsearch_cv with anomaly samples removal
         print('\n####### V. Create & Fit a FairClassifier model ################################################################################################ \n')
         fair_clf = FairClassifier(target_fairness_metric = target_fairness_metric,
                                    base_clf=base_clf,
@@ -229,18 +229,8 @@ if __name__ == '__main__':
         fair_clf_y_pred = fair_clf.predict(X_test)
         fair_clf_y_pred_proba = fair_clf.predict_proba(X_test)
 
-        # best_clf_model_fair_metric_value = frns_utils.get_fairness_score_for_sensitive_features(sensitive_features_names=[sensitive_feature],
-        #                                                                    fairness_metric=target_fairness_metric,
-        #                                                                    y_true=y_test,
-        #                                                                    y_pred=fair_clf_y_pred,
-        #                                                                    data=X_test)
-        #
-        # print(f"best_fair_clf_model: {best_clf_model_fair_metric_value}")
-        # print(classification_report(y_test, pd.Series(y_pred), digits=4))
 
-
-
-        ####-7. Check top fairness aware models' performance on un-seen (Test) data
+        ####-6. Check top fairness aware models' performance on un-seen (Test) data
         print("\n####### VI. Check top fairness aware models' performance on un-seen (Test) data #################################################################### \n")
         top_models_scores_on_test = fair_clf.retrain_top_models_and_get_performance_metrics(X_train=X_train,
                                                                                             y_train=y_train,
@@ -258,7 +248,7 @@ if __name__ == '__main__':
         top_models_scores_on_test_df.to_csv(f'./gscv_results/{datetime_tag}_{project_mode}_{target_fairness_metric}_top_models_scores_on_test_df.csv')
 
 
-        ####-8. print faire classifier final results
+        ####-7. print faire classifier final results
         _, _, fair_clf_auc = utils.get_roc(y_test= y_test,
                                            y_pred= fair_clf_y_pred)
 

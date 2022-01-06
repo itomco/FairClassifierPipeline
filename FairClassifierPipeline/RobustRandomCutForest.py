@@ -1,76 +1,12 @@
-#Importing required libraries
-import json
-# from google.colab import drive
-# import requests
-import zipfile
+#Import required libraries
 import pandas as pd
 import numpy as np
-import sklearn
-from typing import *
-import datetime
-from collections import OrderedDict
-
-#
-# %matplotlib inline
-# import matplotlib.pyplot as plt
-# import seaborn as sns
-# sns.set_context('notebook')
-# sns.set_style(style='darkgrid')
-
-#tomer added
-from scipy import stats
-import statsmodels.formula.api as smf
-
 
 np.random.seed(sum(map(ord, "aesthetics")))
 
-from sklearn.datasets import make_classification
-from sklearn.model_selection import learning_curve
-from sklearn.metrics import classification_report,confusion_matrix, roc_curve, roc_auc_score, auc, accuracy_score
-from sklearn.model_selection import ShuffleSplit,train_test_split, cross_val_score, GridSearchCV
-from sklearn.preprocessing import OneHotEncoder, LabelEncoder, label_binarize, StandardScaler, MinMaxScaler
-from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.pipeline import Pipeline as pipe
-from sklearn.pipeline import FeatureUnion
-from sklearn.preprocessing import OrdinalEncoder
-from sklearn.compose import make_column_transformer, ColumnTransformer
-from sklearn.impute import SimpleImputer
-from sklearn import set_config
-from sklearn_pandas import DataFrameMapper
-from sklearn.base import ClassifierMixin
-from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
-from sklearn.model_selection import RepeatedStratifiedKFold
-from sklearn.metrics import fbeta_score,f1_score
-from sklearn.metrics import make_scorer
-from sklearn.preprocessing import FunctionTransformer
+from sklearn.base import BaseEstimator, ClassifierMixin
 
-#anomaly detection models
-from sklearn.ensemble import IsolationForest
-from sklearn.svm import OneClassSVM
-from sklearn.neighbors import LocalOutlierFactor
-from sklearn.covariance import EllipticEnvelope
 import rrcf
-
-#classifier
-from xgboost import XGBClassifier
-
-
-from pprint import pprint
-
-# import warnings
-# warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-#fairlearn
-from fairlearn.metrics import (
-    MetricFrame,
-    true_positive_rate,
-    false_positive_rate,
-    false_negative_rate,
-    selection_rate,
-    count,
-    equalized_odds_difference
-)
-import itertools
 
 class RobustRandomCutForest(ClassifierMixin, BaseEstimator):
     """
@@ -152,7 +88,7 @@ class RobustRandomCutForest(ClassifierMixin, BaseEstimator):
             avg_codisp_d[codisp.index] += codisp
             np.add.at(index, codisp.index.values, 1.0)
         avg_codisp_d /= index
-        # self.avg_codisp.append(avg_codisp_d)
+
         mask=np.percentile(avg_codisp_d,int((1-self.contamination)*100.0))
         avg_codisp_d[avg_codisp_d <= mask] = 1
         avg_codisp_d[avg_codisp_d > mask] = -1
