@@ -130,6 +130,6 @@ dmypy.json
 .pyre/
 .idea/
 
-gscv_results/*
-Notebook/*
-__pycache__/*
+gscv_results/
+Notebook/
+*__pycache__/
