@@ -236,7 +236,7 @@ if __name__ == '__main__':
                                                                                             y_train=y_train,
                                                                                             X_test=X_test,
                                                                                             y_test=y_test,
-                                                                                            max_num_top_models=180,
+                                                                                            max_num_top_models=results.shape[0],
                                                                                             target_metrics_thresholds={target_fairness_metric:1.0,
                                                                                                                        'f1_macro':0.0})
 
